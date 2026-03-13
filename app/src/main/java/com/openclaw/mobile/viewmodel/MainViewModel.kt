@@ -159,7 +159,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         DepPkg("libnghttp3", "libn/libnghttp3", "libnghttp3_1.15.0_$debArch.deb"),
                         DepPkg("libngtcp2", "libn/libngtcp2", "libngtcp2_1.21.0_$debArch.deb"),
                         DepPkg("brotli", "b/brotli", "brotli_1.2.0_$debArch.deb"),
-                        DepPkg("libsqlite", "libs/libsqlite", "libsqlite_3.52.0-1_$debArch.deb")
+                        DepPkg("libsqlite", "libs/libsqlite", "libsqlite_3.52.0-1_$debArch.deb"),
+                        // Git and its dependencies (openclaw npm package needs git)
+                        DepPkg("libcurl", "libc/libcurl", "libcurl_8.19.0_$debArch.deb"),
+                        DepPkg("libexpat", "libe/libexpat", "libexpat_2.7.4_$debArch.deb"),
+                        DepPkg("pcre2", "p/pcre2", "pcre2_10.47_$debArch.deb"),
+                        DepPkg("git", "g/git", "git_2.53.0_$debArch.deb")
                     )
 
                     val mirrors = listOf(
