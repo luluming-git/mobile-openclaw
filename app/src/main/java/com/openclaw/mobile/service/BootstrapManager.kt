@@ -21,9 +21,9 @@ class BootstrapManager(private val context: Context) {
     private val tmpDir: File get() = File(context.filesDir, "tmp")
 
     companion object {
-        // 国内镜像（ghproxy 代理 GitHub）
+        // 国内镜像（已验证可用）
         private const val MIRROR_BASE_URL =
-            "https://ghproxy.cn/https://github.com/termux/termux-packages/releases/latest/download"
+            "https://gh-proxy.com/https://github.com/termux/termux-packages/releases/latest/download"
         // GitHub 原始地址（备用）
         private const val GITHUB_BASE_URL =
             "https://github.com/termux/termux-packages/releases/latest/download"
