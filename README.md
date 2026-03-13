@@ -7,6 +7,24 @@
 
 ---
 
+## ⚡ 快速开始（一键安装）
+
+> 仅需 3 步，全程约 5-10 分钟。
+
+**1. 安装 Termux 和 Termux:API**（从 [F-Droid](https://f-droid.org) 下载，详见下方说明）
+
+**2. 在 Termux 中粘贴以下命令并回车：**
+
+```bash
+curl -sSL https://raw.githubusercontent.com/luluming-git/mobile-openclaw/main/install.sh | bash
+```
+
+**3. 按提示输入你的 Base URL 和 API Key，脚本将全自动完成安装 + 配置 + 启动。**
+
+> 模型默认使用 `gpt-5.2`，无需额外配置。
+
+---
+
 ## 前置条件
 
 | 项目 | 要求 |
