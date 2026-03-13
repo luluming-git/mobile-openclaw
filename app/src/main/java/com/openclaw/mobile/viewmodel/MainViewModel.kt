@@ -94,6 +94,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
                 addLog("✔ Node.js 安装完成")
 
+                // Step 2.5: Set npm mirror
+                addLog("> 配置 npm 淘宝镜像加速...")
+                terminalSession!!.execute(
+                    "npm config set registry https://registry.npmmirror.com",
+                    onOutput = { addLog("  $it") }
+                )
+                addLog("✔ npm 镜像已切换为淘宝源")
+
                 // Step 3: Install OpenClaw
                 updateStep("正在安装 OpenClaw...", 0.6f)
                 addLog("> npm install -g openclaw...")

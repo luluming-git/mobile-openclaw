@@ -78,6 +78,12 @@ fi
 
 ok "npm 版本：$(npm -v)"
 
+# ---------- 配置 npm 镜像加速 ----------
+echo ""
+info "配置 npm 淘宝镜像加速..."
+npm config set registry https://registry.npmmirror.com
+ok "npm 镜像已切换为淘宝源"
+
 # ---------- 安装 OpenClaw ----------
 echo ""
 info "正在全局安装 OpenClaw..."

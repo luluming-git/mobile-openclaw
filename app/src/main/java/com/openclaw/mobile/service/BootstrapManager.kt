@@ -6,6 +6,7 @@ import okhttp3.Request
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
 /**
@@ -20,19 +21,26 @@ class BootstrapManager(private val context: Context) {
     private val tmpDir: File get() = File(context.filesDir, "tmp")
 
     companion object {
-        // Termux bootstrap archives hosted on GitHub
-        private const val BOOTSTRAP_BASE_URL =
+        // 国内镜像（ghproxy 代理 GitHub）
+        private const val MIRROR_BASE_URL =
+            "https://ghproxy.cn/https://github.com/termux/termux-packages/releases/latest/download"
+        // GitHub 原始地址（备用）
+        private const val GITHUB_BASE_URL =
             "https://github.com/termux/termux-packages/releases/latest/download"
 
-        private fun getBootstrapUrl(arch: String): String {
+        private fun getBootstrapUrls(arch: String): List<String> {
             val archSuffix = when (arch) {
                 "aarch64" -> "aarch64"
                 "arm" -> "arm"
                 "x86_64" -> "x86_64"
                 "i686" -> "i686"
-                else -> "aarch64" // default to arm64
+                else -> "aarch64"
             }
-            return "$BOOTSTRAP_BASE_URL/bootstrap-$archSuffix.zip"
+            val filename = "bootstrap-$archSuffix.zip"
+            return listOf(
+                "$MIRROR_BASE_URL/$filename",   // 优先国内镜像
+                "$GITHUB_BASE_URL/$filename"    // 备用原始地址
+            )
         }
     }
 
@@ -55,15 +63,30 @@ class BootstrapManager(private val context: Context) {
         val arch = System.getProperty("os.arch") ?: "aarch64"
         onProgress(0f, "检测到架构: $arch")
 
-        val url = getBootstrapUrl(arch)
+        val urls = getBootstrapUrls(arch)
         val zipFile = File(context.cacheDir, "bootstrap.zip")
 
-        // Download
+        // Download with mirror fallback
         onProgress(0.1f, "正在下载 bootstrap ($arch)...")
-        downloadFile(url, zipFile) { downloaded, total ->
-            val p = if (total > 0) downloaded.toFloat() / total else 0f
-            val mb = downloaded / (1024 * 1024)
-            onProgress(0.1f + p * 0.5f, "下载中: ${mb}MB...")
+        var lastError: Exception? = null
+        for ((index, url) in urls.withIndex()) {
+            try {
+                val source = if (index == 0) "国内镜像" else "GitHub"
+                onProgress(0.1f, "尝试从${source}下载...")
+                downloadFile(url, zipFile) { downloaded, total ->
+                    val p = if (total > 0) downloaded.toFloat() / total else 0f
+                    val mb = downloaded / (1024 * 1024)
+                    onProgress(0.1f + p * 0.5f, "下载中: ${mb}MB (${source})")
+                }
+                lastError = null
+                break  // 下载成功，跳出循环
+            } catch (e: Exception) {
+                lastError = e
+                onProgress(0.1f, "${if (index == 0) "国内镜像" else "GitHub"}下载失败，尝试备用源...")
+            }
+        }
+        if (lastError != null) {
+            throw Exception("所有下载源均失败: ${lastError!!.message}")
         }
         onProgress(0.6f, "下载完成，正在解压...")
 
@@ -86,9 +109,15 @@ class BootstrapManager(private val context: Context) {
     private fun downloadFile(
         url: String,
         outputFile: File,
+        @Suppress("UNUSED_PARAMETER")
         onProgress: (Long, Long) -> Unit
     ) {
-        val client = OkHttpClient.Builder().build()
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .build()
         val request = Request.Builder().url(url).build()
 
         client.newCall(request).execute().use { response ->
