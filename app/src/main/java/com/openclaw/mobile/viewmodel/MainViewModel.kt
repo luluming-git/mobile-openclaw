@@ -166,14 +166,25 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     debFile.delete()
                     addLog("  提取到: ${dataTar.name} (${dataTar.length() / 1024}KB)")
 
-                    // Use shell only for tar extraction with --strip-components
+                    // Use shell for tar extraction (no --strip-components, busybox doesn't support it)
                     val extractResult = terminalSession!!.execute(
                         """
-                        set -e
                         cd ${'$'}TMPDIR
                         
-                        # Termux .deb paths: data/data/com.termux/files/usr/... (5 levels)
-                        tar xf ${dataTar.name} --strip-components=5 -C ${'$'}PREFIX
+                        # Extract to temp dir first
+                        mkdir -p _node_extract
+                        tar xf ${dataTar.name} -C _node_extract 2>&1 || true
+                        
+                        # Find the usr directory inside (path: data/data/com.termux/files/usr/)
+                        USR_DIR=$(find _node_extract -type d -name "usr" | head -1)
+                        
+                        if [ -n "${'$'}USR_DIR" ] && [ -d "${'$'}USR_DIR" ]; then
+                            echo "Found usr at: ${'$'}USR_DIR"
+                            cp -rf ${'$'}USR_DIR/* ${'$'}PREFIX/
+                        else
+                            echo "WARNING: usr dir not found, trying direct copy"
+                            cp -rf _node_extract/* ${'$'}PREFIX/ 2>/dev/null || true
+                        fi
                         
                         # Set permissions
                         chmod +x ${'$'}PREFIX/bin/node 2>/dev/null || true
@@ -181,7 +192,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         chmod +x ${'$'}PREFIX/bin/npx 2>/dev/null || true
                         
                         # Cleanup
-                        rm -f ${dataTar.name}
+                        rm -rf _node_extract ${dataTar.name}
                         
                         echo "Node: $(node -v 2>&1 || echo 'FAILED')"
                         echo "npm: $(npm -v 2>&1 || echo 'FAILED')"
