@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 data class UiState(
     val isInstalling: Boolean = false,
     val isRunning: Boolean = false,
+    val showLogs: Boolean = false,
     val installStep: String = "",
     val installProgress: Float = 0f,
     val logs: List<String> = emptyList(),
@@ -79,6 +80,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun dismissLogs() {
+        _uiState.update { it.copy(showLogs = false, error = null) }
+    }
+
     fun copyLogs() {
         val clipboard = app.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         val logText = _uiState.value.logs.joinToString("\n")
@@ -96,6 +101,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _uiState.update {
             it.copy(
                 isInstalling = true,
+                showLogs = true,
                 error = null,
                 logs = emptyList(),
                 savedBaseUrl = baseUrl,
@@ -261,10 +267,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 }
 
             } catch (e: Exception) {
-                addLog("✘ 安装失败: ${e.message}")
+                addLog("")
+                addLog("✘ ======== 安装失败 ========")
+                addLog("✘ 错误: ${e.message}")
+                addLog("✘ 请点击上方【复制日志】按钮")
+                addLog("✘ 然后粘贴日志给开发者")
+                addLog("✘ ========================")
                 _uiState.update {
                     it.copy(
                         isInstalling = false,
+                        showLogs = true,
                         error = e.message ?: "未知错误"
                     )
                 }

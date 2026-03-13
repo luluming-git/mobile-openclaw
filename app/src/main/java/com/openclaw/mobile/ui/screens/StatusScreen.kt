@@ -30,7 +30,8 @@ fun StatusScreen(
     uiState: UiState,
     onStop: () -> Unit,
     onRestart: () -> Unit,
-    onCopyLogs: () -> Unit = {}
+    onCopyLogs: () -> Unit = {},
+    onDismiss: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
 
@@ -277,6 +278,32 @@ fun StatusScreen(
                             Icon(Icons.Default.Refresh, contentDescription = null)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("重启")
+                        }
+                    } else if (uiState.error != null) {
+                        // Error state: show error + copy + back buttons
+                        Text(
+                            text = "❌ ${uiState.error}",
+                            color = Color(0xFFFF5252),
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        OutlinedButton(
+                            onClick = onCopyLogs,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("复制日志", fontSize = 12.sp)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("返回")
                         }
                     }
                 }

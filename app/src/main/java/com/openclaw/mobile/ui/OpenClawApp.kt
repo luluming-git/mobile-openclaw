@@ -16,12 +16,13 @@ fun OpenClawApp() {
     val uiState by viewModel.uiState.collectAsState()
 
     when {
-        uiState.isRunning || uiState.isInstalling -> {
+        uiState.isRunning || uiState.isInstalling || uiState.showLogs -> {
             StatusScreen(
                 uiState = uiState,
                 onStop = { viewModel.stopGateway() },
                 onRestart = { viewModel.restartGateway() },
-                onCopyLogs = { viewModel.copyLogs() }
+                onCopyLogs = { viewModel.copyLogs() },
+                onDismiss = { viewModel.dismissLogs() }
             )
         }
         else -> {
