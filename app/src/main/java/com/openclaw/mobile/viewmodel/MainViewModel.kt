@@ -146,16 +146,19 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                     // Termux dependency packages that nodejs-lts needs
                     // These provide the shared libraries (libcares.so, libicu*.so, etc.)
+                    // Package format: Triple(displayName, repoSubPath, debFileName)
+                    // Paths and versions verified from Tsinghua mirror directory listing
+                    data class DepPkg(val name: String, val subPath: String, val debName: String)
                     val depPackages = listOf(
-                        "c-ares" to "c-ares_1.34.4_$debArch.deb",
-                        "libc++" to "libc++_28.1_$debArch.deb",
-                        "libicu" to "libicu_76.1_$debArch.deb",
-                        "openssl" to "openssl_3.4.1_$debArch.deb",
-                        "zlib" to "zlib_1.3.1-1_$debArch.deb",
-                        "libnghttp2" to "libnghttp2_1.65.0_$debArch.deb",
-                        "libnghttp3" to "libnghttp3_1.8.0_$debArch.deb",
-                        "libngtcp2" to "libngtcp2_1.11.0_$debArch.deb",
-                        "libbrotli" to "libbrotli_1.1.0-1_$debArch.deb"
+                        DepPkg("c-ares", "c/c-ares", "c-ares_1.34.6_$debArch.deb"),
+                        DepPkg("libc++", "libc/libc++", "libc++_29_$debArch.deb"),
+                        DepPkg("libicu", "libi/libicu", "libicu_78.2_$debArch.deb"),
+                        DepPkg("openssl", "o/openssl", "openssl_1%3A3.6.1_$debArch.deb"),
+                        DepPkg("zlib", "z/zlib", "zlib_1.3.2_$debArch.deb"),
+                        DepPkg("libnghttp2", "libn/libnghttp2", "libnghttp2_1.68.0-1_$debArch.deb"),
+                        DepPkg("libnghttp3", "libn/libnghttp3", "libnghttp3_1.15.0_$debArch.deb"),
+                        DepPkg("libngtcp2", "libn/libngtcp2", "libngtcp2_1.21.0_$debArch.deb"),
+                        DepPkg("brotli", "b/brotli", "brotli_1.2.0_$debArch.deb")
                     )
 
                     val mirrors = listOf(
@@ -168,15 +171,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     addLog("> 安装 Node.js 依赖库...")
                     val totalPkgs = depPackages.size + 1 // +1 for nodejs itself
                     for ((idx, pkg) in depPackages.withIndex()) {
-                        val (pkgName, debName) = pkg
-                        val firstLetter = pkgName.first().lowercase()
-                        val debFile = File(app.cacheDir, "dep_$pkgName.deb")
+                        val debFile = File(app.cacheDir, "dep_${pkg.name}.deb")
                         val progress = 0.2f + (idx.toFloat() / totalPkgs) * 0.3f
-                        updateStep("安装依赖 ($pkgName) ${idx+1}/$totalPkgs", progress)
+                        updateStep("安装依赖 (${pkg.name}) ${idx+1}/$totalPkgs", progress)
 
                         var downloaded = false
                         for ((repo, mirrorName) in mirrors) {
-                            val url = "$repo/pool/main/$firstLetter/$pkgName/$debName"
+                            val url = "$repo/pool/main/${pkg.subPath}/${pkg.debName}"
                             try {
                                 bootstrapManager.downloadFile(url, debFile) { _, _ -> }
                                 downloaded = true
@@ -186,13 +187,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         if (downloaded) {
                             try {
                                 val count = bootstrapManager.installNodeFromDeb(debFile) { }
-                                addLog("  ✔ $pkgName ($count 文件)")
+                                addLog("  ✔ ${pkg.name} ($count 文件)")
                             } catch (e: Exception) {
-                                addLog("  ⚠ $pkgName 安装失败: ${e.message}")
+                                addLog("  ⚠ ${pkg.name} 安装失败: ${e.message}")
                             }
                             debFile.delete()
                         } else {
-                            addLog("  ⚠ $pkgName 下载失败 (跳过)")
+                            addLog("  ⚠ ${pkg.name} 下载失败 (跳过)")
                         }
                     }
 
