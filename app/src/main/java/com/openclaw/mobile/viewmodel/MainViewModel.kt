@@ -384,32 +384,34 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 )
                 addLog("✔ npm 镜像已切换为淘宝源")
 
-                // Configure git: rewrite SSH URLs to HTTPS (SSH won't work on mobile)
+                // Configure git: write .gitconfig directly from Java (more reliable than shell)
+                val homeDir = File(app.filesDir, "home").absolutePath
                 addLog("> 配置 git (SSH→HTTPS)...")
-                terminalSession!!.execute(
-                    """
-                    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-                    git config --global url."https://github.com/".insteadOf "git@github.com:"
-                    """.trimIndent(),
-                    onOutput = { addLog("  $it") }
-                )
-                addLog("✔ git 配置完成")
+                val gitconfigFile = File(homeDir, ".gitconfig")
+                gitconfigFile.writeText("""
+[url "https://github.com/"]
+    insteadOf = ssh://git@github.com/
+    insteadOf = git@github.com:
+[http]
+    sslVerify = false
+""".trimIndent() + "\n")
+                addLog("  ✔ .gitconfig 已写入")
 
                 // Step 3: Install OpenClaw (use node to call npm-cli.js directly, bypass shebang)
                 updateStep("正在安装 OpenClaw...", 0.6f)
 
-                // Clean npm cache to avoid stale git-clone directories from previous failures
-                val homeDir = File(app.filesDir, "home").absolutePath
+                // Clean ALL npm cache to avoid stale data from previous failures
                 addLog("> 清理 npm 缓存...")
                 terminalSession!!.execute(
-                    "rm -rf $homeDir/.npm/_cacache/tmp/* 2>/dev/null && echo 'cache cleaned' || echo 'no cache to clean'",
+                    "rm -rf $homeDir/.npm/_cacache 2>/dev/null && echo 'cache cleaned' || echo 'no cache'",
                     onOutput = { addLog("  $it") }
                 )
 
                 addLog("> 通过 node 直接运行 npm install -g openclaw...")
+                addLog("  (使用 verbose 模式查看详细日志)")
 
                 val openclawResult = terminalSession!!.execute(
-                    "${'$'}PREFIX/bin/node $npmCli install -g openclaw --ignore-scripts --no-optional 2>&1",
+                    "${'$'}PREFIX/bin/node $npmCli install -g openclaw --ignore-scripts --no-optional --loglevel verbose 2>&1",
                     onOutput = { addLog("  $it") }
                 )
 
