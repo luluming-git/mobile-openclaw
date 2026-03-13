@@ -397,6 +397,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 // Step 3: Install OpenClaw (use node to call npm-cli.js directly, bypass shebang)
                 updateStep("正在安装 OpenClaw...", 0.6f)
+
+                // Clean npm cache to avoid stale git-clone directories from previous failures
+                terminalSession!!.execute(
+                    "rm -rf ${'$'}HOME/.npm/_cacache/tmp/git-clone* 2>/dev/null; ${'$'}PREFIX/bin/node $npmCli cache clean --force 2>/dev/null"
+                )
+
                 addLog("> 通过 node 直接运行 npm install -g openclaw...")
 
                 val openclawResult = terminalSession!!.execute(
