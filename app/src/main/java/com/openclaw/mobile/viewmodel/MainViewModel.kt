@@ -124,16 +124,14 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 addLog("✔ Linux 运行环境就绪")
 
-                // Step 2: Install Node.js (Java downloads, shell extracts only)
+                // Step 2: Install Node.js and dependencies
                 updateStep("正在安装 Node.js...", 0.4f)
-                addLog("> 下载 Node.js (Termux 预编译)...")
 
                 terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
 
-                // Check if node already installed
-                val checkNode = terminalSession!!.execute("command -v node && node -v")
+                // Check if node already works
+                val checkNode = terminalSession!!.execute("command -v node && node -v 2>&1 | head -1")
                 if (checkNode != 0) {
-                    // Download .deb via Java/OkHttp (has SSL certs, shell doesn't)
                     val arch = System.getProperty("os.arch") ?: "aarch64"
                     val debArch = when {
                         arch.contains("aarch64") || arch.contains("arm64") -> "aarch64"
@@ -141,12 +139,61 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
                         else -> "aarch64"
                     }
-                    // Multiple mirrors: Tsinghua -> USTC -> Official (verified working)
+
+                    // Termux dependency packages that nodejs-lts needs
+                    // These provide the shared libraries (libcares.so, libicu*.so, etc.)
+                    val depPackages = listOf(
+                        "c-ares" to "c-ares_1.34.4_$debArch.deb",
+                        "libc++" to "libc++_28.1_$debArch.deb",
+                        "libicu" to "libicu_76.1_$debArch.deb",
+                        "openssl" to "openssl_3.4.1_$debArch.deb",
+                        "zlib" to "zlib_1.3.1-1_$debArch.deb",
+                        "libnghttp2" to "libnghttp2_1.65.0_$debArch.deb",
+                        "libnghttp3" to "libnghttp3_1.8.0_$debArch.deb",
+                        "libngtcp2" to "libngtcp2_1.11.0_$debArch.deb",
+                        "libbrotli" to "libbrotli_1.1.0-1_$debArch.deb"
+                    )
+
                     val mirrors = listOf(
                         "https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main" to "清华镜像",
                         "https://mirrors.ustc.edu.cn/termux/apt/termux-main" to "中科大镜像",
                         "https://packages.termux.dev/apt/termux-main" to "官方源"
                     )
+
+                    // Step 2a: Install dependency packages
+                    addLog("> 安装 Node.js 依赖库...")
+                    val totalPkgs = depPackages.size + 1 // +1 for nodejs itself
+                    for ((idx, pkg) in depPackages.withIndex()) {
+                        val (pkgName, debName) = pkg
+                        val firstLetter = pkgName.first().lowercase()
+                        val debFile = File(app.cacheDir, "dep_$pkgName.deb")
+                        val progress = 0.2f + (idx.toFloat() / totalPkgs) * 0.3f
+                        updateStep("安装依赖 ($pkgName) ${idx+1}/$totalPkgs", progress)
+
+                        var downloaded = false
+                        for ((repo, mirrorName) in mirrors) {
+                            val url = "$repo/pool/main/$firstLetter/$pkgName/$debName"
+                            try {
+                                bootstrapManager.downloadFile(url, debFile) { _, _ -> }
+                                downloaded = true
+                                break
+                            } catch (_: Exception) { }
+                        }
+                        if (downloaded) {
+                            try {
+                                val count = bootstrapManager.installNodeFromDeb(debFile) { }
+                                addLog("  ✔ $pkgName ($count 文件)")
+                            } catch (e: Exception) {
+                                addLog("  ⚠ $pkgName 安装失败: ${e.message}")
+                            }
+                            debFile.delete()
+                        } else {
+                            addLog("  ⚠ $pkgName 下载失败 (跳过)")
+                        }
+                    }
+
+                    // Step 2b: Install nodejs-lts
+                    addLog("> 下载 Node.js (Termux 预编译)...")
                     val debName = "nodejs-lts_24.14.0_${debArch}.deb"
                     val debFile = File(app.cacheDir, "nodejs.deb")
 
@@ -158,7 +205,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                             bootstrapManager.downloadFile(debUrl, debFile) { downloaded, total ->
                                 val mb = downloaded / (1024 * 1024)
                                 val totalMb = if (total > 0) total / (1024 * 1024) else 9
-                                updateStep("下载 Node.js: ${mb}/${totalMb}MB ($name)", 0.4f + (if (total > 0) downloaded.toFloat() / total * 0.15f else 0f))
+                                updateStep("下载 Node.js: ${mb}/${totalMb}MB ($name)", 0.55f + (if (total > 0) downloaded.toFloat() / total * 0.1f else 0f))
                             }
                             addLog("  ✔ 从 $name 下载成功")
                             downloadSuccess = true
@@ -171,7 +218,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         throw Exception("所有镜像源下载 Node.js 均失败")
                     }
 
-                    // Install entirely in Java (no shell ar/tar/xz needed)
                     addLog("  解压并安装中...")
                     val fileCount = bootstrapManager.installNodeFromDeb(debFile) { msg ->
                         addLog("  $msg")
