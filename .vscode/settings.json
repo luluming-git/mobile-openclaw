@@ -8,5 +8,6 @@
     "**/CVS": true,
     "**/.ruby-lsp": true,
     ".yoyo": true
-  }
+  },
+  "java.configuration.updateBuildConfiguration": "interactive"
 }
