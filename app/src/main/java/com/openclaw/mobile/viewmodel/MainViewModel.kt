@@ -230,6 +230,59 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                     debFile.delete()
                     addLog("  ✔ 已安装 $fileCount 个文件")
+
+                    // Step 2c: Create npm/npx symlinks (deb symlinks may not extract properly)
+                    val prefix = bootstrapManager.prefixDir.absolutePath
+                    val npmCliPath = "$prefix/lib/node_modules/npm/bin/npm-cli.js"
+                    val npxCliPath = "$prefix/lib/node_modules/npm/bin/npx-cli.js"
+                    val npmBin = File("$prefix/bin/npm")
+                    val npxBin = File("$prefix/bin/npx")
+
+                    // Find npm-cli.js - might be at different paths
+                    val possibleNpmPaths = listOf(
+                        "$prefix/lib/node_modules/npm/bin/npm-cli.js",
+                        "$prefix/lib/node_modules/.package-lock.json" // marker
+                    )
+                    addLog("  检查 npm 文件...")
+                    // List what we have in lib/node_modules
+                    val nodeModulesDir = File("$prefix/lib/node_modules")
+                    if (nodeModulesDir.exists()) {
+                        val contents = nodeModulesDir.list() ?: emptyArray()
+                        addLog("  lib/node_modules/ 内容: ${contents.joinToString(", ")}")
+                    } else {
+                        addLog("  ⚠ lib/node_modules/ 不存在")
+                    }
+
+                    // Create npm wrapper script if npm-cli.js exists
+                    if (File(npmCliPath).exists()) {
+                        npmBin.writeText("#!/bin/sh\nexec \"$prefix/bin/node\" \"$npmCliPath\" \"\$@\"\n")
+                        npmBin.setExecutable(true, false)
+                        addLog("  ✔ 创建 npm 脚本")
+                    } else {
+                        addLog("  ⚠ npm-cli.js 不存在")
+                    }
+                    if (File(npxCliPath).exists()) {
+                        npxBin.writeText("#!/bin/sh\nexec \"$prefix/bin/node\" \"$npxCliPath\" \"\$@\"\n")
+                        npxBin.setExecutable(true, false)
+                        addLog("  ✔ 创建 npx 脚本")
+                    }
+
+                    // Step 2d: Ensure OpenSSL config exists
+                    val opensslConf = File("$prefix/etc/tls/openssl.cnf")
+                    if (!opensslConf.exists()) {
+                        File("$prefix/etc/tls").mkdirs()
+                        opensslConf.writeText("""
+                            # Minimal OpenSSL configuration
+                            openssl_conf = openssl_init
+                            [openssl_init]
+                            ssl_conf = ssl_sect
+                            [ssl_sect]
+                            system_default = system_default_sect
+                            [system_default_sect]
+                            CipherString = DEFAULT:@SECLEVEL=1
+                        """.trimIndent() + "\n")
+                        addLog("  ✔ 创建 OpenSSL 默认配置")
+                    }
                 }
 
                 // Diagnostic: check what we have

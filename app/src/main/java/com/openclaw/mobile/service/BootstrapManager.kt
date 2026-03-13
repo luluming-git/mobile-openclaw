@@ -379,7 +379,13 @@ class BootstrapManager(private val context: Context) {
             "PATH" to "$prefix/bin:$prefix/bin/applets:/system/bin:/system/xbin",
             "LD_LIBRARY_PATH" to "$prefix/lib",
             "ANDROID_ROOT" to "/system",
-            "ANDROID_DATA" to "/data"
+            "ANDROID_DATA" to "/data",
+            // Override hardcoded Termux OpenSSL paths
+            "OPENSSL_CONF" to "$prefix/etc/tls/openssl.cnf",
+            "SSL_CERT_FILE" to "$prefix/etc/tls/cert.pem",
+            "SSL_CERT_DIR" to "$prefix/etc/tls/certs",
+            // Tell Node.js to use our OpenSSL config
+            "NODE_OPTIONS" to "--openssl-config=$prefix/etc/tls/openssl.cnf"
         )
     }
 }
