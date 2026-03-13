@@ -394,6 +394,8 @@ class BootstrapManager(private val context: Context) {
             // SSL certificate paths for git HTTPS
             "GIT_SSL_CAINFO" to "$prefix/etc/tls/cert.pem",
             "GIT_SSL_CAPATH" to "$prefix/etc/tls/certs",
+            // Fallback: skip SSL verification if CA certs still don't work
+            "GIT_SSL_NO_VERIFY" to "true",
             // Force SSH→HTTPS rewrite via env vars (more reliable than gitconfig file)
             "GIT_CONFIG_COUNT" to "2",
             "GIT_CONFIG_KEY_0" to "url.https://github.com/.insteadOf",

@@ -399,8 +399,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 updateStep("正在安装 OpenClaw...", 0.6f)
 
                 // Clean npm cache to avoid stale git-clone directories from previous failures
+                val homeDir = File(app.filesDir, "home").absolutePath
+                addLog("> 清理 npm 缓存...")
                 terminalSession!!.execute(
-                    "rm -rf ${'$'}HOME/.npm/_cacache/tmp/git-clone* 2>/dev/null; ${'$'}PREFIX/bin/node $npmCli cache clean --force 2>/dev/null"
+                    "rm -rf $homeDir/.npm/_cacache/tmp/* 2>/dev/null && echo 'cache cleaned' || echo 'no cache to clean'",
+                    onOutput = { addLog("  $it") }
                 )
 
                 addLog("> 通过 node 直接运行 npm install -g openclaw...")
