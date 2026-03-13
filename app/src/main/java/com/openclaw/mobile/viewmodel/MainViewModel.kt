@@ -6,6 +6,7 @@ import androidx.lifecycle.*
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.openclaw.mobile.service.BootstrapManager
 import com.openclaw.mobile.service.GatewayService
+import com.openclaw.mobile.service.ModelFetcher
 import com.openclaw.mobile.service.TerminalSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,7 +23,10 @@ data class UiState(
     val logs: List<String> = emptyList(),
     val error: String? = null,
     val savedBaseUrl: String = "",
-    val savedApiKey: String = ""
+    val savedApiKey: String = "",
+    val models: List<String> = emptyList(),
+    val isFetchingModels: Boolean = false,
+    val modelError: String? = null
 )
 
 class MainViewModel(private val app: Application) : AndroidViewModel(app) {
@@ -47,11 +51,39 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun startFullInstall(baseUrl: String, apiKey: String) {
+    /**
+     * Fetch available models from the API.
+     */
+    fun fetchModels(baseUrl: String, apiKey: String) {
+        _uiState.update { it.copy(isFetchingModels = true, modelError = null, models = emptyList()) }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val models = ModelFetcher.fetchModels(baseUrl, apiKey)
+                val modelIds = models.map { it.id }
+                _uiState.update {
+                    it.copy(
+                        models = modelIds,
+                        isFetchingModels = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isFetchingModels = false,
+                        modelError = "获取模型失败: ${e.message}"
+                    )
+                }
+            }
+        }
+    }
+
+    fun startFullInstall(baseUrl: String, apiKey: String, modelId: String) {
         // Save config
         app.getSharedPreferences("openclaw", 0).edit()
             .putString("base_url", baseUrl)
             .putString("api_key", apiKey)
+            .putString("model_id", modelId)
             .apply()
 
         _uiState.update {
@@ -127,7 +159,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         --auth-choice custom-api-key \
                         --custom-base-url "$baseUrl" \
                         --custom-api-key "$apiKey" \
-                        --custom-model-id "gpt-5.2" \
+                        --custom-model-id "$modelId" \
                         --custom-compatibility openai \
                         --no-install-daemon \
                         --skip-channels \

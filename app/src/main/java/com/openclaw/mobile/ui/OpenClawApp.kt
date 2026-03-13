@@ -26,8 +26,11 @@ fun OpenClawApp() {
         else -> {
             SetupScreen(
                 uiState = uiState,
-                onStartInstall = { baseUrl, apiKey ->
-                    viewModel.startFullInstall(baseUrl, apiKey)
+                onFetchModels = { baseUrl, apiKey ->
+                    viewModel.fetchModels(baseUrl, apiKey)
+                },
+                onStartInstall = { baseUrl, apiKey, modelId ->
+                    viewModel.startFullInstall(baseUrl, apiKey, modelId)
                 }
             )
         }
