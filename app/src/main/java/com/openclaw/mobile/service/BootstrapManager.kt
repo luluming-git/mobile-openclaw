@@ -390,7 +390,13 @@ class BootstrapManager(private val context: Context) {
             "GIT_CONFIG_NOSYSTEM" to "1",
             "GIT_CONFIG_GLOBAL" to "$home/.gitconfig",
             "GIT_EXEC_PATH" to "$prefix/libexec/git-core",
-            "GIT_TEMPLATE_DIR" to "$prefix/share/git-core/templates"
+            "GIT_TEMPLATE_DIR" to "$prefix/share/git-core/templates",
+            // Force SSH→HTTPS rewrite via env vars (more reliable than gitconfig file)
+            "GIT_CONFIG_COUNT" to "2",
+            "GIT_CONFIG_KEY_0" to "url.https://github.com/.insteadOf",
+            "GIT_CONFIG_VALUE_0" to "ssh://git@github.com/",
+            "GIT_CONFIG_KEY_1" to "url.https://github.com/.insteadOf",
+            "GIT_CONFIG_VALUE_1" to "git@github.com:"
         )
     }
 }
