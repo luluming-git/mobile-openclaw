@@ -168,16 +168,37 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         """
                         set -e
                         cd ${'$'}TMPDIR
-                        ar x node.deb 2>/dev/null || (echo "ar not found, using tar fallback"; cp node.deb data.tar.xz 2>/dev/null || true)
-                        tar xf data.tar.* -C ${'$'}PREFIX/.. 2>/dev/null || tar xf data.tar.* -C / 2>/dev/null || true
-                        chmod +x ${'$'}PREFIX/bin/node 2>/dev/null || true
-                        if [ ! -f "${'$'}PREFIX/bin/npm" ] && [ -f "${'$'}PREFIX/lib/node_modules/npm/bin/npm-cli.js" ]; then
-                            ln -sf ../lib/node_modules/npm/bin/npm-cli.js ${'$'}PREFIX/bin/npm
-                            ln -sf ../lib/node_modules/npm/bin/npx-cli.js ${'$'}PREFIX/bin/npx
+                        
+                        # Extract .deb (ar archive)
+                        ar x node.deb 2>/dev/null || true
+                        
+                        # Find the data tarball
+                        DATA_TAR=$(ls data.tar.* 2>/dev/null | head -1)
+                        if [ -z "${'$'}DATA_TAR" ]; then
+                            echo "ERROR: No data.tar found in .deb"
+                            exit 1
                         fi
-                        rm -f node.deb data.tar.* control.tar.* debian-binary
-                        echo "Node: $(node -v 2>&1 || echo 'failed')"
-                        echo "npm: $(npm -v 2>&1 || echo 'not found')"
+                        echo "Found: ${'$'}DATA_TAR"
+                        
+                        # Termux .deb paths: data/data/com.termux/files/usr/... (5 levels)
+                        # Strip those 5 levels and extract to PREFIX
+                        tar xf ${'$'}DATA_TAR --strip-components=5 -C ${'$'}PREFIX 2>/dev/null || \
+                        tar xf ${'$'}DATA_TAR -C ${'$'}PREFIX/.. 2>/dev/null || true
+                        
+                        # Set permissions
+                        chmod +x ${'$'}PREFIX/bin/node 2>/dev/null || true
+                        chmod +x ${'$'}PREFIX/bin/npm 2>/dev/null || true
+                        chmod +x ${'$'}PREFIX/bin/npx 2>/dev/null || true
+                        
+                        # Verify
+                        ls -la ${'$'}PREFIX/bin/node 2>/dev/null || echo "WARNING: node binary not found"
+                        ls -la ${'$'}PREFIX/bin/npm 2>/dev/null || echo "WARNING: npm not found"
+                        
+                        # Cleanup
+                        rm -f node.deb ${'$'}DATA_TAR control.tar.* debian-binary
+                        
+                        echo "Node: $(node -v 2>&1 || echo 'FAILED - not in PATH')"
+                        echo "npm: $(npm -v 2>&1 || echo 'FAILED - not in PATH')"
                         """.trimIndent(),
                         onOutput = { addLog("  $it") }
                     )
