@@ -109,16 +109,19 @@ class BootstrapManager(private val context: Context) {
     private fun downloadFile(
         url: String,
         outputFile: File,
-        @Suppress("UNUSED_PARAMETER")
         onProgress: (Long, Long) -> Unit
     ) {
         val client = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(300, TimeUnit.SECONDS)   // 30MB on slow mobile: allow up to 5 min
+            .writeTimeout(30, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .build()
-        val request = Request.Builder().url(url).build()
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", "OpenClaw-Mobile/1.0")
+            .build()
 
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
