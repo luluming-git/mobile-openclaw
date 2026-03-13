@@ -183,7 +183,44 @@ class BootstrapManager(private val context: Context) {
         }
         tarInput.close()
 
-        onProgress("安装完成: $fileCount 个文件")
+        // Step 3: Fix shebangs - Termux scripts have hardcoded
+        // #!/data/data/com.termux/files/usr/bin/node etc.
+        // Replace with our actual prefix path
+        val termuxPrefixPath = "/data/data/com.termux/files/usr"
+        val ourPrefix = prefixDir.absolutePath
+        onProgress("修正脚本路径 ($termuxPrefixPath → $ourPrefix)...")
+        var fixedCount = 0
+
+        // Fix shebangs in bin/ directory
+        binDir.listFiles()?.forEach { file ->
+            if (file.isFile && file.canRead() && file.length() < 1024 * 100) { // < 100KB = likely script
+                try {
+                    val content = file.readText()
+                    if (content.startsWith("#!") && content.contains(termuxPrefixPath)) {
+                        file.writeText(content.replace(termuxPrefixPath, ourPrefix))
+                        file.setExecutable(true, false)
+                        fixedCount++
+                    }
+                } catch (_: Exception) { } // Skip binary files with encoding errors
+            }
+        }
+
+        // Fix shebangs in lib/ scripts (npm, npx cli scripts are here)
+        File(prefixDir, "lib").walkTopDown().forEach { file ->
+            if (file.isFile && file.canRead() && file.length() < 1024 * 100) {
+                try {
+                    val firstLine = file.bufferedReader().use { it.readLine() ?: "" }
+                    if (firstLine.startsWith("#!") && firstLine.contains(termuxPrefixPath)) {
+                        val content = file.readText()
+                        file.writeText(content.replace(termuxPrefixPath, ourPrefix))
+                        file.setExecutable(true, false)
+                        fixedCount++
+                    }
+                } catch (_: Exception) { }
+            }
+        }
+
+        onProgress("安装完成: $fileCount 个文件, 修正 $fixedCount 个脚本")
         return fileCount
     }
 
