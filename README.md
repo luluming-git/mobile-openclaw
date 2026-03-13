@@ -124,11 +124,13 @@ openclaw setup --wizard
 ## 第七步：启动 OpenClaw
 
 ```bash
-# 启动 OpenClaw 网关
+# 启动 OpenClaw 网关（前台运行）
 openclaw gateway
 ```
 
-> 如需以后台服务方式运行，可以使用 `openclaw gateway install` 安装为系统服务，然后用 `openclaw gateway start` 启动。
+> [!CAUTION]
+> **Android/Termux 不支持 `gateway restart/start/stop/install` 等服务管理命令！**
+> 这些命令依赖 systemd，在 Termux 中不可用。请直接使用 `openclaw gateway` 前台启动，配合 tmux 实现后台运行（见下方「保持后台运行的技巧」章节）。
 
 启动成功后，你会看到控制面板 URL（通常是 `http://localhost:18789`）。
 
