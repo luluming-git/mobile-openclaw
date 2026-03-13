@@ -79,6 +79,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun copyLogs() {
+        val clipboard = app.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val logText = _uiState.value.logs.joinToString("\n")
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("OpenClaw Logs", logText))
+    }
+
     fun startFullInstall(baseUrl: String, apiKey: String, modelId: String) {
         // Save config
         app.getSharedPreferences("openclaw", 0).edit()

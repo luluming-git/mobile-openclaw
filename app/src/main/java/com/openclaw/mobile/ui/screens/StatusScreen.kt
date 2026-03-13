@@ -29,7 +29,8 @@ import com.openclaw.mobile.viewmodel.UiState
 fun StatusScreen(
     uiState: UiState,
     onStop: () -> Unit,
-    onRestart: () -> Unit
+    onRestart: () -> Unit,
+    onCopyLogs: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
 
@@ -199,6 +200,24 @@ fun StatusScreen(
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium
                         )
+                        Spacer(modifier = Modifier.weight(1f))
+                        TextButton(
+                            onClick = onCopyLogs,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.ContentCopy,
+                                contentDescription = "复制日志",
+                                tint = Color.White.copy(alpha = 0.5f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "复制日志",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 11.sp
+                            )
+                        }
                     }
 
                     LazyColumn(

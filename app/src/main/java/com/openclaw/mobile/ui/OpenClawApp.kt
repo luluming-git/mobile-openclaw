@@ -20,7 +20,8 @@ fun OpenClawApp() {
             StatusScreen(
                 uiState = uiState,
                 onStop = { viewModel.stopGateway() },
-                onRestart = { viewModel.restartGateway() }
+                onRestart = { viewModel.restartGateway() },
+                onCopyLogs = { viewModel.copyLogs() }
             )
         }
         else -> {
