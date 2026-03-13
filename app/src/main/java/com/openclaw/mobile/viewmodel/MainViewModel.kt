@@ -258,8 +258,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         npmBin.writeText("#!/bin/sh\nexec \"$prefix/bin/node\" \"$npmCliPath\" \"\$@\"\n")
                         npmBin.setExecutable(true, false)
                         addLog("  ✔ 创建 npm 脚本")
-                    } else {
-                        addLog("  ⚠ npm-cli.js 不存在")
                     }
                     if (File(npxCliPath).exists()) {
                         npxBin.writeText("#!/bin/sh\nexec \"$prefix/bin/node\" \"$npxCliPath\" \"\$@\"\n")
@@ -285,9 +283,75 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                 }
 
+                // Step 3: Install npm if not present (npm is NOT included in nodejs-lts deb)
+                val prefix = bootstrapManager.prefixDir.absolutePath
+                val npmCliPath = "$prefix/lib/node_modules/npm/bin/npm-cli.js"
+                if (!File(npmCliPath).exists()) {
+                    updateStep("正在安装 npm...", 0.7f)
+                    addLog("> 安装 npm (从 registry.npmmirror.com)...")
+
+                    // Download npm tarball
+                    val npmTarball = File(app.cacheDir, "npm.tgz")
+                    val npmMirrors = listOf(
+                        "https://registry.npmmirror.com/npm/latest/download/npm-11.2.0.tgz" to "淘宝镜像",
+                        "https://registry.npmjs.org/npm/-/npm-11.2.0.tgz" to "官方源"
+                    )
+                    var npmDownloaded = false
+                    for ((url, mirrorName) in npmMirrors) {
+                        try {
+                            addLog("  尝试 $mirrorName ...")
+                            bootstrapManager.downloadFile(url, npmTarball) { downloaded, total ->
+                                val mb = downloaded / (1024 * 1024)
+                                val totalMb = if (total > 0) total / (1024 * 1024) else 5
+                                updateStep("下载 npm: ${mb}/${totalMb}MB", 0.7f)
+                            }
+                            addLog("  ✔ 下载成功")
+                            npmDownloaded = true
+                            break
+                        } catch (e: Exception) {
+                            addLog("  ✘ $mirrorName 失败: ${e.message}")
+                        }
+                    }
+
+                    if (npmDownloaded) {
+                        // Extract npm tarball using node + tar
+                        val npmModuleDir = File("$prefix/lib/node_modules/npm")
+                        npmModuleDir.mkdirs()
+
+                        // Use shell tar to extract (it's in bootstrap)
+                        terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
+                        val extractResult = terminalSession!!.execute(
+                            "tar xzf ${npmTarball.absolutePath} -C $prefix/lib/node_modules/npm --strip-components=1 2>&1",
+                            onOutput = { addLog("  $it") }
+                        )
+
+                        npmTarball.delete()
+
+                        if (extractResult == 0 && File(npmCliPath).exists()) {
+                            // Create npm/npx wrapper scripts
+                            val npmBin = File("$prefix/bin/npm")
+                            npmBin.writeText("#!/bin/sh\nexec \"$prefix/bin/node\" \"$npmCliPath\" \"\$@\"\n")
+                            npmBin.setExecutable(true, false)
+
+                            val npxCliFile = File("$prefix/lib/node_modules/npm/bin/npx-cli.js")
+                            if (npxCliFile.exists()) {
+                                val npxBin = File("$prefix/bin/npx")
+                                npxBin.writeText("#!/bin/sh\nexec \"$prefix/bin/node\" \"${npxCliFile.absolutePath}\" \"\$@\"\n")
+                                npxBin.setExecutable(true, false)
+                            }
+                            addLog("  ✔ npm 安装完成")
+                        } else {
+                            addLog("  ✘ npm 解压失败 (exit $extractResult)")
+                        }
+                    } else {
+                        throw Exception("npm 下载失败")
+                    }
+                } else {
+                    addLog("  npm 已存在，跳过安装")
+                }
+
                 // Diagnostic: check what we have
                 addLog("> 诊断检查...")
-                val prefix = bootstrapManager.prefixDir.absolutePath
                 terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
                 terminalSession!!.execute(
                     """
