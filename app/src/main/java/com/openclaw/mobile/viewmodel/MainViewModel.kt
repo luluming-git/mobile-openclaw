@@ -202,7 +202,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 addLog("> 通过 node 直接运行 npm install -g openclaw...")
 
                 val openclawResult = terminalSession!!.execute(
-                    "${'$'}PREFIX/bin/node $npmCli install -g openclaw",
+                    "${'$'}PREFIX/bin/node $npmCli install -g openclaw --ignore-scripts --no-optional 2>&1",
                     onOutput = { addLog("  $it") }
                 )
 
