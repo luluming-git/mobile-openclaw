@@ -129,8 +129,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
 
-                // Check if node already works
-                val checkNode = terminalSession!!.execute("command -v node && node -v 2>&1 | head -1")
+                // Check if node actually works (not just exists - needs shared libs)
+                // Use full path and actually execute, don't just check file existence
+                val checkNode = terminalSession!!.execute(
+                    "${'$'}PREFIX/bin/node -e \"process.exit(0)\" 2>/dev/null"
+                )
+                addLog("  node 可用性检查: ${if (checkNode == 0) "OK" else "需要安装 (exit $checkNode)"}")
                 if (checkNode != 0) {
                     val arch = System.getProperty("os.arch") ?: "aarch64"
                     val debArch = when {
