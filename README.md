@@ -101,9 +101,11 @@ openclaw --version
 ## 第六步：初始化和配置 OpenClaw
 
 ```bash
-# 运行初始化向导
-openclaw init
+# 运行配置向导
+openclaw setup --wizard
 ```
+
+> 也可以使用 `openclaw onboard` 进入更详细的引导流程。
 
 初始化过程中会要求你配置：
 
@@ -123,8 +125,10 @@ openclaw init
 
 ```bash
 # 启动 OpenClaw 网关
-openclaw start
+openclaw gateway
 ```
+
+> 如需以后台服务方式运行，可以使用 `openclaw gateway install` 安装为系统服务，然后用 `openclaw gateway start` 启动。
 
 启动成功后，你会看到控制面板 URL（通常是 `http://localhost:18789`）。
 
@@ -198,7 +202,7 @@ termux-wake-lock
 
 # 2. 使用 tmux 保持会话
 tmux new -s openclaw
-openclaw start
+openclaw gateway
 # 按 Ctrl+B 然后按 D 分离会话，OpenClaw 继续运行
 # 重新连接：tmux attach -t openclaw
 ```
