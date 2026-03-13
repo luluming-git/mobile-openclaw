@@ -129,10 +129,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
                         else -> "aarch64"
                     }
-                    val debUrl = "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_20.18.1_${debArch}.deb"
+                    val debUrl = "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs-lts/nodejs-lts_24.14.0_${debArch}.deb"
                     val debFile = File(app.cacheDir, "nodejs.deb")
 
-                    addLog("  下载 nodejs_20.18.1_${debArch}.deb ...")
+                    addLog("  下载 nodejs-lts_24.14.0_${debArch}.deb ...")
                     bootstrapManager.downloadFile(debUrl, debFile) { downloaded, total ->
                         val mb = downloaded / (1024 * 1024)
                         updateStep("下载 Node.js: ${mb}MB", 0.4f + (if (total > 0) downloaded.toFloat() / total * 0.15f else 0f))
