@@ -159,46 +159,32 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         throw Exception("所有镜像源下载 Node.js 均失败")
                     }
 
-                    // Copy .deb to bootstrap tmp dir and extract via shell
-                    val tmpDeb = File(File(app.filesDir, "tmp"), "node.deb")
-                    debFile.copyTo(tmpDeb, overwrite = true)
+                    // Extract data.tar.xz from .deb using Java (no ar command needed)
+                    addLog("  解压 .deb 包...")
+                    val tmpDir = File(app.filesDir, "tmp")
+                    val dataTar = bootstrapManager.extractDataFromDeb(debFile, tmpDir)
                     debFile.delete()
+                    addLog("  提取到: ${dataTar.name} (${dataTar.length() / 1024}KB)")
 
+                    // Use shell only for tar extraction with --strip-components
                     val extractResult = terminalSession!!.execute(
                         """
                         set -e
                         cd ${'$'}TMPDIR
                         
-                        # Extract .deb (ar archive)
-                        ar x node.deb 2>/dev/null || true
-                        
-                        # Find the data tarball
-                        DATA_TAR=$(ls data.tar.* 2>/dev/null | head -1)
-                        if [ -z "${'$'}DATA_TAR" ]; then
-                            echo "ERROR: No data.tar found in .deb"
-                            exit 1
-                        fi
-                        echo "Found: ${'$'}DATA_TAR"
-                        
                         # Termux .deb paths: data/data/com.termux/files/usr/... (5 levels)
-                        # Strip those 5 levels and extract to PREFIX
-                        tar xf ${'$'}DATA_TAR --strip-components=5 -C ${'$'}PREFIX 2>/dev/null || \
-                        tar xf ${'$'}DATA_TAR -C ${'$'}PREFIX/.. 2>/dev/null || true
+                        tar xf ${dataTar.name} --strip-components=5 -C ${'$'}PREFIX
                         
                         # Set permissions
                         chmod +x ${'$'}PREFIX/bin/node 2>/dev/null || true
                         chmod +x ${'$'}PREFIX/bin/npm 2>/dev/null || true
                         chmod +x ${'$'}PREFIX/bin/npx 2>/dev/null || true
                         
-                        # Verify
-                        ls -la ${'$'}PREFIX/bin/node 2>/dev/null || echo "WARNING: node binary not found"
-                        ls -la ${'$'}PREFIX/bin/npm 2>/dev/null || echo "WARNING: npm not found"
-                        
                         # Cleanup
-                        rm -f node.deb ${'$'}DATA_TAR control.tar.* debian-binary
+                        rm -f ${dataTar.name}
                         
-                        echo "Node: $(node -v 2>&1 || echo 'FAILED - not in PATH')"
-                        echo "npm: $(npm -v 2>&1 || echo 'FAILED - not in PATH')"
+                        echo "Node: $(node -v 2>&1 || echo 'FAILED')"
+                        echo "npm: $(npm -v 2>&1 || echo 'FAILED')"
                         """.trimIndent(),
                         onOutput = { addLog("  $it") }
                     )

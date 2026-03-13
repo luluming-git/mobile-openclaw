@@ -107,6 +107,60 @@ class BootstrapManager(private val context: Context) {
     }
 
     /**
+     * Extract data.tar.xz from a .deb file (ar archive format).
+     * ar format: 8-byte magic "!<arch>\n", then entries with 60-byte headers.
+     */
+    fun extractDataFromDeb(debFile: File, outputDir: File): File {
+        val input = debFile.inputStream().buffered()
+
+        // Read ar magic: "!<arch>\n" (8 bytes)
+        val magic = ByteArray(8)
+        input.read(magic)
+        if (!String(magic).startsWith("!<arch>")) {
+            input.close()
+            throw Exception("Not a valid .deb file")
+        }
+
+        var dataFile: File? = null
+
+        while (input.available() > 0) {
+            val header = ByteArray(60)
+            if (input.read(header) < 60) break
+
+            val name = String(header, 0, 16).trim()
+            val sizeStr = String(header, 48, 10).trim()
+            val size = sizeStr.toLongOrNull() ?: 0L
+
+            if (name.startsWith("data.tar")) {
+                outputDir.mkdirs()
+                val ext = when {
+                    name.contains(".xz") -> ".tar.xz"
+                    name.contains(".gz") -> ".tar.gz"
+                    else -> ".tar.xz"
+                }
+                dataFile = File(outputDir, "data$ext")
+                FileOutputStream(dataFile).use { fos ->
+                    var remaining = size
+                    val buffer = ByteArray(8192)
+                    while (remaining > 0) {
+                        val toRead = minOf(remaining.toInt(), buffer.size)
+                        val read = input.read(buffer, 0, toRead)
+                        if (read <= 0) break
+                        fos.write(buffer, 0, read)
+                        remaining -= read
+                    }
+                }
+                break
+            } else {
+                input.skip(size)
+                if (size % 2 != 0L) input.skip(1)
+            }
+        }
+        input.close()
+        return dataFile ?: throw Exception("data.tar not found in .deb")
+    }
+
+    /**
      * Download a file using OkHttp (uses Android system SSL certs).
      * Public so ViewModel can use it for downloading Node.js etc.
      */
