@@ -391,6 +391,9 @@ class BootstrapManager(private val context: Context) {
             "GIT_CONFIG_GLOBAL" to "$home/.gitconfig",
             "GIT_EXEC_PATH" to "$prefix/libexec/git-core",
             "GIT_TEMPLATE_DIR" to "$prefix/share/git-core/templates",
+            // SSL certificate paths for git HTTPS
+            "GIT_SSL_CAINFO" to "$prefix/etc/tls/cert.pem",
+            "GIT_SSL_CAPATH" to "$prefix/etc/tls/certs",
             // Force SSH→HTTPS rewrite via env vars (more reliable than gitconfig file)
             "GIT_CONFIG_COUNT" to "2",
             "GIT_CONFIG_KEY_0" to "url.https://github.com/.insteadOf",

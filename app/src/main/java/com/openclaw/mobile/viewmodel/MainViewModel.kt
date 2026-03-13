@@ -164,7 +164,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         DepPkg("libcurl", "libc/libcurl", "libcurl_8.19.0_$debArch.deb"),
                         DepPkg("libexpat", "libe/libexpat", "libexpat_2.7.4_$debArch.deb"),
                         DepPkg("pcre2", "p/pcre2", "pcre2_10.47_$debArch.deb"),
-                        DepPkg("git", "g/git", "git_2.53.0_$debArch.deb")
+                        DepPkg("git", "g/git", "git_2.53.0_$debArch.deb"),
+                        DepPkg("ca-certificates", "c/ca-certificates", "ca-certificates_1%3A2025.12.02_all.deb")
                     )
 
                     val mirrors = listOf(
