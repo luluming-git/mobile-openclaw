@@ -2,6 +2,7 @@ package com.openclaw.mobile.viewmodel
 
 import android.app.Application
 import android.content.Intent
+import java.io.File
 import androidx.lifecycle.*
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.openclaw.mobile.service.BootstrapManager
@@ -111,75 +112,59 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
                 addLog("✔ Linux 运行环境就绪")
 
-                // Step 2: Install Node.js (download Termux .deb, no pkg/dpkg needed)
+                // Step 2: Install Node.js (Java downloads, shell extracts only)
                 updateStep("正在安装 Node.js...", 0.4f)
                 addLog("> 下载 Node.js (Termux 预编译)...")
 
                 terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
 
-                // Download Termux's Node.js .deb directly and extract without dpkg
-                // Termux .deb files are ar archives containing data.tar.xz
-                val nodeInstallScript = """
-                    set -e
-                    
-                    if command -v node > /dev/null 2>&1; then
-                        echo "Node.js already installed: $(node -v)"
-                        exit 0
-                    fi
-                    
-                    ARCH=$(uname -m)
-                    case "${'$'}ARCH" in
-                        aarch64) DEB_ARCH="aarch64" ;;
-                        armv7l|armv8l) DEB_ARCH="arm" ;;
-                        x86_64) DEB_ARCH="x86_64" ;;
-                        i686) DEB_ARCH="i686" ;;
-                        *) DEB_ARCH="aarch64" ;;
-                    esac
-                    
-                    REPO="https://packages.termux.dev/apt/termux-main"
-                    
-                    cd ${'$'}TMPDIR
-                    
-                    # Download nodejs-lts .deb from Termux repo
-                    echo "Fetching package list..."
-                    PKG_URL="${'$'}REPO/pool/main/n/nodejs/"
-                    
-                    # Direct download the known LTS version
-                    NODE_DEB="nodejs_20.18.1_${'$'}DEB_ARCH.deb"
-                    DEB_URL="${'$'}REPO/pool/main/n/nodejs/${'$'}NODE_DEB"
-                    
-                    echo "Downloading ${'$'}NODE_DEB ..."
-                    wget -q --timeout=60 -O node.deb "${'$'}DEB_URL" 2>/dev/null || \
-                    curl -sSL --connect-timeout 60 -o node.deb "${'$'}DEB_URL"
-                    
-                    # Extract .deb (ar archive) -> data.tar.xz -> files
-                    echo "Extracting..."
-                    ar x node.deb
-                    tar xf data.tar.* -C / 2>/dev/null || tar xf data.tar.* -C ${'$'}PREFIX/.. 2>/dev/null || true
-                    
-                    # Ensure executables have correct permissions
-                    chmod +x ${'$'}PREFIX/bin/node 2>/dev/null || true
-                    
-                    # Create npm/npx symlinks if they don't exist
-                    if [ ! -f "${'$'}PREFIX/bin/npm" ] && [ -f "${'$'}PREFIX/lib/node_modules/npm/bin/npm-cli.js" ]; then
-                        ln -sf ../lib/node_modules/npm/bin/npm-cli.js ${'$'}PREFIX/bin/npm
-                        ln -sf ../lib/node_modules/npm/bin/npx-cli.js ${'$'}PREFIX/bin/npx
-                    fi
-                    
-                    # Cleanup
-                    rm -f node.deb data.tar.* control.tar.* debian-binary
-                    
-                    echo "Node.js installed: $(node -v 2>&1 || echo 'unknown')"
-                    echo "npm: $(npm -v 2>&1 || echo 'not found')"
-                """.trimIndent()
+                // Check if node already installed
+                val checkNode = terminalSession!!.execute("command -v node && node -v")
+                if (checkNode != 0) {
+                    // Download .deb via Java/OkHttp (has SSL certs, shell doesn't)
+                    val arch = System.getProperty("os.arch") ?: "aarch64"
+                    val debArch = when {
+                        arch.contains("aarch64") || arch.contains("arm64") -> "aarch64"
+                        arch.contains("arm") -> "arm"
+                        arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
+                        else -> "aarch64"
+                    }
+                    val debUrl = "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs/nodejs_20.18.1_${debArch}.deb"
+                    val debFile = File(app.cacheDir, "nodejs.deb")
 
-                val nodeResult = terminalSession!!.execute(
-                    nodeInstallScript,
-                    onOutput = { addLog("  $it") }
-                )
+                    addLog("  下载 nodejs_20.18.1_${debArch}.deb ...")
+                    bootstrapManager.downloadFile(debUrl, debFile) { downloaded, total ->
+                        val mb = downloaded / (1024 * 1024)
+                        updateStep("下载 Node.js: ${mb}MB", 0.4f + (if (total > 0) downloaded.toFloat() / total * 0.15f else 0f))
+                    }
+                    addLog("  下载完成，解压中...")
 
-                if (nodeResult != 0) {
-                    throw Exception("Node.js 安装失败 (exit code: $nodeResult)")
+                    // Copy .deb to bootstrap tmp dir and extract via shell
+                    val tmpDeb = File(File(app.filesDir, "tmp"), "node.deb")
+                    debFile.copyTo(tmpDeb, overwrite = true)
+                    debFile.delete()
+
+                    val extractResult = terminalSession!!.execute(
+                        """
+                        set -e
+                        cd ${'$'}TMPDIR
+                        ar x node.deb 2>/dev/null || (echo "ar not found, using tar fallback"; cp node.deb data.tar.xz 2>/dev/null || true)
+                        tar xf data.tar.* -C ${'$'}PREFIX/.. 2>/dev/null || tar xf data.tar.* -C / 2>/dev/null || true
+                        chmod +x ${'$'}PREFIX/bin/node 2>/dev/null || true
+                        if [ ! -f "${'$'}PREFIX/bin/npm" ] && [ -f "${'$'}PREFIX/lib/node_modules/npm/bin/npm-cli.js" ]; then
+                            ln -sf ../lib/node_modules/npm/bin/npm-cli.js ${'$'}PREFIX/bin/npm
+                            ln -sf ../lib/node_modules/npm/bin/npx-cli.js ${'$'}PREFIX/bin/npx
+                        fi
+                        rm -f node.deb data.tar.* control.tar.* debian-binary
+                        echo "Node: $(node -v 2>&1 || echo 'failed')"
+                        echo "npm: $(npm -v 2>&1 || echo 'not found')"
+                        """.trimIndent(),
+                        onOutput = { addLog("  $it") }
+                    )
+
+                    if (extractResult != 0) {
+                        throw Exception("Node.js 解压失败 (exit code: $extractResult)")
+                    }
                 }
                 addLog("✔ Node.js 安装完成")
 
@@ -191,7 +176,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 )
                 addLog("✔ npm 镜像已切换为淘宝源")
 
-                // Step 3: Install OpenClaw
+                // Step 3: Install OpenClaw (npm install runs in shell, but downloads use npm registry which works)
                 updateStep("正在安装 OpenClaw...", 0.6f)
                 addLog("> npm install -g openclaw...")
 

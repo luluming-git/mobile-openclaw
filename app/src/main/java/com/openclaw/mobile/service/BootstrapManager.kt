@@ -106,7 +106,11 @@ class BootstrapManager(private val context: Context) {
         onProgress(1f, "运行环境就绪")
     }
 
-    private fun downloadFile(
+    /**
+     * Download a file using OkHttp (uses Android system SSL certs).
+     * Public so ViewModel can use it for downloading Node.js etc.
+     */
+    fun downloadFile(
         url: String,
         outputFile: File,
         onProgress: (Long, Long) -> Unit
