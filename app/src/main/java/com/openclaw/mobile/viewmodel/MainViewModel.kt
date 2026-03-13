@@ -129,15 +129,35 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         arch.contains("x86_64") || arch.contains("amd64") -> "x86_64"
                         else -> "aarch64"
                     }
-                    val debUrl = "https://packages.termux.dev/apt/termux-main/pool/main/n/nodejs-lts/nodejs-lts_24.14.0_${debArch}.deb"
+                    // Multiple mirrors: Tsinghua -> USTC -> Official (verified working)
+                    val mirrors = listOf(
+                        "https://mirrors.tuna.tsinghua.edu.cn/termux/apt/termux-main" to "清华镜像",
+                        "https://mirrors.ustc.edu.cn/termux/apt/termux-main" to "中科大镜像",
+                        "https://packages.termux.dev/apt/termux-main" to "官方源"
+                    )
+                    val debName = "nodejs-lts_24.14.0_${debArch}.deb"
                     val debFile = File(app.cacheDir, "nodejs.deb")
 
-                    addLog("  下载 nodejs-lts_24.14.0_${debArch}.deb ...")
-                    bootstrapManager.downloadFile(debUrl, debFile) { downloaded, total ->
-                        val mb = downloaded / (1024 * 1024)
-                        updateStep("下载 Node.js: ${mb}MB", 0.4f + (if (total > 0) downloaded.toFloat() / total * 0.15f else 0f))
+                    var downloadSuccess = false
+                    for ((repo, name) in mirrors) {
+                        val debUrl = "$repo/pool/main/n/nodejs-lts/$debName"
+                        addLog("  尝试 $name 下载 $debName ...")
+                        try {
+                            bootstrapManager.downloadFile(debUrl, debFile) { downloaded, total ->
+                                val mb = downloaded / (1024 * 1024)
+                                val totalMb = if (total > 0) total / (1024 * 1024) else 9
+                                updateStep("下载 Node.js: ${mb}/${totalMb}MB ($name)", 0.4f + (if (total > 0) downloaded.toFloat() / total * 0.15f else 0f))
+                            }
+                            addLog("  ✔ 从 $name 下载成功")
+                            downloadSuccess = true
+                            break
+                        } catch (e: Exception) {
+                            addLog("  ✘ $name 失败: ${e.message}")
+                        }
                     }
-                    addLog("  下载完成，解压中...")
+                    if (!downloadSuccess) {
+                        throw Exception("所有镜像源下载 Node.js 均失败")
+                    }
 
                     // Copy .deb to bootstrap tmp dir and extract via shell
                     val tmpDeb = File(File(app.filesDir, "tmp"), "node.deb")
