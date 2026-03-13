@@ -385,7 +385,12 @@ class BootstrapManager(private val context: Context) {
             "SSL_CERT_FILE" to "$prefix/etc/tls/cert.pem",
             "SSL_CERT_DIR" to "$prefix/etc/tls/certs",
             // Tell Node.js to use our OpenSSL config
-            "NODE_OPTIONS" to "--openssl-config=$prefix/etc/tls/openssl.cnf"
+            "NODE_OPTIONS" to "--openssl-config=$prefix/etc/tls/openssl.cnf",
+            // Override hardcoded Termux git paths
+            "GIT_CONFIG_NOSYSTEM" to "1",
+            "GIT_CONFIG_GLOBAL" to "$home/.gitconfig",
+            "GIT_EXEC_PATH" to "$prefix/libexec/git-core",
+            "GIT_TEMPLATE_DIR" to "$prefix/share/git-core/templates"
         )
     }
 }

@@ -383,6 +383,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 )
                 addLog("✔ npm 镜像已切换为淘宝源")
 
+                // Configure git: rewrite SSH URLs to HTTPS (SSH won't work on mobile)
+                addLog("> 配置 git (SSH→HTTPS)...")
+                terminalSession!!.execute(
+                    """
+                    git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+                    git config --global url."https://github.com/".insteadOf "git@github.com:"
+                    """.trimIndent(),
+                    onOutput = { addLog("  $it") }
+                )
+                addLog("✔ git 配置完成")
+
                 // Step 3: Install OpenClaw (use node to call npm-cli.js directly, bypass shebang)
                 updateStep("正在安装 OpenClaw...", 0.6f)
                 addLog("> 通过 node 直接运行 npm install -g openclaw...")
