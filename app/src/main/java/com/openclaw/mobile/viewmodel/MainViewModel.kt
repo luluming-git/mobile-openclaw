@@ -166,33 +166,43 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                     }
                     debFile.delete()
                     addLog("  ✔ 已安装 $fileCount 个文件")
-
-                    // Verify with shell
-                    terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
-                    val verifyResult = terminalSession!!.execute(
-                        "echo \"Node: $(node -v 2>&1)\" && echo \"npm: $(npm -v 2>&1)\"",
-                        onOutput = { addLog("  $it") }
-                    )
-                    if (verifyResult != 0) {
-                        addLog("  WARNING: 验证命令返回 $verifyResult")
-                    }
                 }
+
+                // Diagnostic: check what we have
+                addLog("> 诊断检查...")
+                val prefix = bootstrapManager.prefixDir.absolutePath
+                terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
+                terminalSession!!.execute(
+                    """
+                    echo "PREFIX=${'$'}PREFIX"
+                    echo "--- bin/ 中的关键文件 ---"
+                    ls -la ${'$'}PREFIX/bin/node 2>&1
+                    ls -la ${'$'}PREFIX/bin/npm 2>&1
+                    ls -la ${'$'}PREFIX/bin/npx 2>&1
+                    echo "--- 测试 node ---"
+                    ${'$'}PREFIX/bin/node -v 2>&1
+                    echo "--- npm-cli.js ---"
+                    ls -la ${'$'}PREFIX/lib/node_modules/npm/bin/npm-cli.js 2>&1
+                    """.trimIndent(),
+                    onOutput = { addLog("  $it") }
+                )
                 addLog("✔ Node.js 安装完成")
 
-                // Step 2.5: Set npm mirror
+                // Step 2.5: Set npm mirror (use node to call npm-cli.js directly)
                 addLog("> 配置 npm 淘宝镜像加速...")
+                val npmCli = "$prefix/lib/node_modules/npm/bin/npm-cli.js"
                 terminalSession!!.execute(
-                    "npm config set registry https://registry.npmmirror.com",
+                    "${'$'}PREFIX/bin/node $npmCli config set registry https://registry.npmmirror.com",
                     onOutput = { addLog("  $it") }
                 )
                 addLog("✔ npm 镜像已切换为淘宝源")
 
-                // Step 3: Install OpenClaw (npm install runs in shell, but downloads use npm registry which works)
+                // Step 3: Install OpenClaw (use node to call npm-cli.js directly, bypass shebang)
                 updateStep("正在安装 OpenClaw...", 0.6f)
-                addLog("> npm install -g openclaw...")
+                addLog("> 通过 node 直接运行 npm install -g openclaw...")
 
                 val openclawResult = terminalSession!!.execute(
-                    "npm install -g openclaw",
+                    "${'$'}PREFIX/bin/node $npmCli install -g openclaw",
                     onOutput = { addLog("  $it") }
                 )
 
@@ -206,7 +216,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 addLog("> 自动配置 (onboard --non-interactive)...")
 
                 val configResult = terminalSession!!.execute(
-                    """openclaw onboard \
+                    """${'$'}PREFIX/bin/node ${'$'}PREFIX/lib/node_modules/openclaw/bin/openclaw.js onboard \
                         --non-interactive \
                         --mode local \
                         --auth-choice custom-api-key \
