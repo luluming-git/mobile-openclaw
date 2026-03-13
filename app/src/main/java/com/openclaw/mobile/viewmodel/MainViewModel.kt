@@ -159,49 +159,22 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         throw Exception("所有镜像源下载 Node.js 均失败")
                     }
 
-                    // Extract data.tar.xz from .deb using Java (no ar command needed)
-                    addLog("  解压 .deb 包...")
-                    val tmpDir = File(app.filesDir, "tmp")
-                    val dataTar = bootstrapManager.extractDataFromDeb(debFile, tmpDir)
+                    // Install entirely in Java (no shell ar/tar/xz needed)
+                    addLog("  解压并安装中...")
+                    val fileCount = bootstrapManager.installNodeFromDeb(debFile) { msg ->
+                        addLog("  $msg")
+                    }
                     debFile.delete()
-                    addLog("  提取到: ${dataTar.name} (${dataTar.length() / 1024}KB)")
+                    addLog("  ✔ 已安装 $fileCount 个文件")
 
-                    // Use shell for tar extraction (no --strip-components, busybox doesn't support it)
-                    val extractResult = terminalSession!!.execute(
-                        """
-                        cd ${'$'}TMPDIR
-                        
-                        # Extract to temp dir first
-                        mkdir -p _node_extract
-                        tar xf ${dataTar.name} -C _node_extract 2>&1 || true
-                        
-                        # Find the usr directory inside (path: data/data/com.termux/files/usr/)
-                        USR_DIR=$(find _node_extract -type d -name "usr" | head -1)
-                        
-                        if [ -n "${'$'}USR_DIR" ] && [ -d "${'$'}USR_DIR" ]; then
-                            echo "Found usr at: ${'$'}USR_DIR"
-                            cp -rf ${'$'}USR_DIR/* ${'$'}PREFIX/
-                        else
-                            echo "WARNING: usr dir not found, trying direct copy"
-                            cp -rf _node_extract/* ${'$'}PREFIX/ 2>/dev/null || true
-                        fi
-                        
-                        # Set permissions
-                        chmod +x ${'$'}PREFIX/bin/node 2>/dev/null || true
-                        chmod +x ${'$'}PREFIX/bin/npm 2>/dev/null || true
-                        chmod +x ${'$'}PREFIX/bin/npx 2>/dev/null || true
-                        
-                        # Cleanup
-                        rm -rf _node_extract ${dataTar.name}
-                        
-                        echo "Node: $(node -v 2>&1 || echo 'FAILED')"
-                        echo "npm: $(npm -v 2>&1 || echo 'FAILED')"
-                        """.trimIndent(),
+                    // Verify with shell
+                    terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
+                    val verifyResult = terminalSession!!.execute(
+                        "echo \"Node: $(node -v 2>&1)\" && echo \"npm: $(npm -v 2>&1)\"",
                         onOutput = { addLog("  $it") }
                     )
-
-                    if (extractResult != 0) {
-                        throw Exception("Node.js 解压失败 (exit code: $extractResult)")
+                    if (verifyResult != 0) {
+                        addLog("  WARNING: 验证命令返回 $verifyResult")
                     }
                 }
                 addLog("✔ Node.js 安装完成")

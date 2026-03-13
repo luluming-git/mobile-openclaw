@@ -107,57 +107,121 @@ class BootstrapManager(private val context: Context) {
     }
 
     /**
-     * Extract data.tar.xz from a .deb file (ar archive format).
-     * ar format: 8-byte magic "!<arch>\n", then entries with 60-byte headers.
+     * Install Node.js from a Termux .deb file entirely in Java.
+     * 1. Parse ar archive to find data.tar.xz
+     * 2. Decompress XZ and extract tar entries
+     * 3. Strip Termux path prefix and write to prefixDir
+     *
+     * @return number of files extracted
      */
-    fun extractDataFromDeb(debFile: File, outputDir: File): File {
-        val input = debFile.inputStream().buffered()
+    fun installNodeFromDeb(
+        debFile: File,
+        onProgress: (String) -> Unit
+    ): Int {
+        onProgress("解析 .deb 文件...")
 
-        // Read ar magic: "!<arch>\n" (8 bytes)
-        val magic = ByteArray(8)
-        input.read(magic)
-        if (!String(magic).startsWith("!<arch>")) {
-            input.close()
-            throw Exception("Not a valid .deb file")
+        // Step 1: Extract data.tar.xz from ar archive
+        val dataTarBytes = extractArEntry(debFile, "data.tar")
+            ?: throw Exception(".deb 中未找到 data.tar")
+
+        onProgress("解压 data.tar.xz (${dataTarBytes.size / 1024}KB)...")
+
+        // Step 2: Decompress XZ and extract tar
+        val termuxPrefix = "data/data/com.termux/files/usr/"
+        var fileCount = 0
+
+        val xzInput = org.tukaani.xz.XZInputStream(dataTarBytes.inputStream())
+        val tarInput = org.apache.commons.compress.archivers.tar.TarArchiveInputStream(xzInput)
+
+        var entry = tarInput.nextEntry
+        while (entry != null) {
+            var entryName = entry.name
+            // Strip leading "./" if present
+            if (entryName.startsWith("./")) entryName = entryName.substring(2)
+
+            // Strip Termux prefix: data/data/com.termux/files/usr/ -> ""
+            val relativePath = if (entryName.startsWith(termuxPrefix)) {
+                entryName.substring(termuxPrefix.length)
+            } else {
+                entry = tarInput.nextEntry
+                continue // Skip files outside usr/
+            }
+
+            if (relativePath.isEmpty()) {
+                entry = tarInput.nextEntry
+                continue
+            }
+
+            val outFile = File(prefixDir, relativePath)
+
+            if (entry.isDirectory) {
+                outFile.mkdirs()
+            } else {
+                outFile.parentFile?.mkdirs()
+                // Handle symlinks
+                if (entry.isSymbolicLink) {
+                    try {
+                        Runtime.getRuntime().exec(
+                            arrayOf("ln", "-sf", entry.linkName, outFile.absolutePath)
+                        ).waitFor()
+                    } catch (_: Exception) { }
+                } else {
+                    FileOutputStream(outFile).use { fos ->
+                        tarInput.copyTo(fos)
+                    }
+                    // Set executable for bin/ files
+                    if (relativePath.startsWith("bin/") ||
+                        relativePath.endsWith(".so") ||
+                        !relativePath.contains(".")) {
+                        outFile.setExecutable(true, false)
+                    }
+                }
+                fileCount++
+            }
+
+            entry = tarInput.nextEntry
         }
+        tarInput.close()
 
-        var dataFile: File? = null
+        onProgress("安装完成: $fileCount 个文件")
+        return fileCount
+    }
+
+    /**
+     * Extract a named entry from an ar archive (.deb file).
+     * Returns the raw bytes of the entry, or null if not found.
+     */
+    private fun extractArEntry(arFile: File, namePrefix: String): ByteArray? {
+        val input = arFile.inputStream().buffered()
+
+        // Skip ar magic "!<arch>\n" (8 bytes)
+        input.skip(8)
 
         while (input.available() > 0) {
             val header = ByteArray(60)
             if (input.read(header) < 60) break
 
-            val name = String(header, 0, 16).trim()
+            val name = String(header, 0, 16).trim().trimEnd('/')
             val sizeStr = String(header, 48, 10).trim()
             val size = sizeStr.toLongOrNull() ?: 0L
 
-            if (name.startsWith("data.tar")) {
-                outputDir.mkdirs()
-                val ext = when {
-                    name.contains(".xz") -> ".tar.xz"
-                    name.contains(".gz") -> ".tar.gz"
-                    else -> ".tar.xz"
+            if (name.startsWith(namePrefix)) {
+                val data = ByteArray(size.toInt())
+                var offset = 0
+                while (offset < data.size) {
+                    val read = input.read(data, offset, data.size - offset)
+                    if (read <= 0) break
+                    offset += read
                 }
-                dataFile = File(outputDir, "data$ext")
-                FileOutputStream(dataFile).use { fos ->
-                    var remaining = size
-                    val buffer = ByteArray(8192)
-                    while (remaining > 0) {
-                        val toRead = minOf(remaining.toInt(), buffer.size)
-                        val read = input.read(buffer, 0, toRead)
-                        if (read <= 0) break
-                        fos.write(buffer, 0, read)
-                        remaining -= read
-                    }
-                }
-                break
+                input.close()
+                return data
             } else {
                 input.skip(size)
                 if (size % 2 != 0L) input.skip(1)
             }
         }
         input.close()
-        return dataFile ?: throw Exception("data.tar not found in .deb")
+        return null
     }
 
     /**

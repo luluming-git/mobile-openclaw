@@ -65,5 +65,9 @@ dependencies {
     // OkHttp for downloading bootstrap
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
+    // Archive extraction (for .deb / tar.xz in Java)
+    implementation("org.apache.commons:commons-compress:1.26.1")
+    implementation("org.tukaani:xz:1.9")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
