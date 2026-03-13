@@ -384,9 +384,26 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 )
                 addLog("✔ npm 镜像已切换为淘宝源")
 
-                // Configure git: write .gitconfig directly from Java (more reliable than shell)
+                // Configure git: create a wrapper script that forces HTTPS + SSL bypass
+                // (.gitconfig and env vars didn't work — wrapper is most reliable)
                 val homeDir = File(app.filesDir, "home").absolutePath
                 addLog("> 配置 git (SSH→HTTPS)...")
+                val gitReal = File("$prefix/bin/git-real")
+                val gitBin = File("$prefix/bin/git")
+                // Rename real git to git-real if not already done
+                if (!gitReal.exists() && gitBin.exists()) {
+                    gitBin.renameTo(gitReal)
+                }
+                // Create wrapper script
+                gitBin.writeText("""#!/bin/sh
+exec "$prefix/bin/git-real" \
+  -c "url.https://github.com/.insteadOf=ssh://git@github.com/" \
+  -c "url.https://github.com/.insteadOf=git@github.com:" \
+  -c "http.sslVerify=false" \
+  "${'$'}@"
+""")
+                gitBin.setExecutable(true, false)
+                // Also write .gitconfig as backup
                 val gitconfigFile = File(homeDir, ".gitconfig")
                 gitconfigFile.writeText("""
 [url "https://github.com/"]
@@ -395,7 +412,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 [http]
     sslVerify = false
 """.trimIndent() + "\n")
-                addLog("  ✔ .gitconfig 已写入")
+                addLog("  ✔ git 包装脚本已创建")
 
                 // Step 3: Install OpenClaw (use node to call npm-cli.js directly, bypass shebang)
                 updateStep("正在安装 OpenClaw...", 0.6f)
