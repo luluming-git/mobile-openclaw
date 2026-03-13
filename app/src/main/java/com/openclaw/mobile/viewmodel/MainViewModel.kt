@@ -158,7 +158,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         DepPkg("libnghttp2", "libn/libnghttp2", "libnghttp2_1.68.0-1_$debArch.deb"),
                         DepPkg("libnghttp3", "libn/libnghttp3", "libnghttp3_1.15.0_$debArch.deb"),
                         DepPkg("libngtcp2", "libn/libngtcp2", "libngtcp2_1.21.0_$debArch.deb"),
-                        DepPkg("brotli", "b/brotli", "brotli_1.2.0_$debArch.deb")
+                        DepPkg("brotli", "b/brotli", "brotli_1.2.0_$debArch.deb"),
+                        DepPkg("libsqlite", "libs/libsqlite", "libsqlite_3.52.0-1_$debArch.deb")
                     )
 
                     val mirrors = listOf(
