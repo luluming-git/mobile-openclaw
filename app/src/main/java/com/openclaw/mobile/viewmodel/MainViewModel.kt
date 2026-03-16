@@ -532,6 +532,13 @@ exec "$prefix/bin/git-real" \
     "port": 18789,
     "mode": "local",
     "bind": "loopback",
+    "auth": {
+      "mode": "none"
+    },
+    "controlUi": {
+      "allowInsecureAuth": true,
+      "dangerouslyDisableDeviceAuth": true
+    },
     "tailscale": {
       "mode": "off",
       "resetOnExit": false
