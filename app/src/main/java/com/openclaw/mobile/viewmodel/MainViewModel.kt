@@ -38,6 +38,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    private val _terminalOutput = MutableStateFlow<List<String>>(listOf("OpenClaw 终端控制台", "输入 openclaw 命令或任意 shell 命令", ""))
+    val terminalOutput: StateFlow<List<String>> = _terminalOutput.asStateFlow()
+
     private val bootstrapManager = BootstrapManager(app)
     private var terminalSession: TerminalSession? = null
     private var gatewayProcess: Process? = null
@@ -90,6 +93,31 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val clipboard = app.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         val logText = _uiState.value.logs.joinToString("\n")
         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("OpenClaw Logs", logText))
+    }
+
+    fun executeTerminalCommand(command: String) {
+        val session = terminalSession ?: return
+        _terminalOutput.update { it + "$ $command" }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val installDir = "${'$'}HOME/openclaw-install"
+                // Prefix with openclaw bin path for openclaw commands
+                val fullCmd = if (command.startsWith("openclaw ") || command == "openclaw") {
+                    "cd $installDir && ${'$'}PREFIX/bin/node node_modules/.bin/$command 2>&1"
+                } else {
+                    "cd $installDir && $command 2>&1"
+                }
+                session.execute(
+                    fullCmd,
+                    onOutput = { line ->
+                        _terminalOutput.update { it + line }
+                    }
+                )
+                _terminalOutput.update { it + "" }
+            } catch (e: Exception) {
+                _terminalOutput.update { it + "错误: ${e.message}" + "" }
+            }
+        }
     }
 
     fun startFullInstall(baseUrl: String, apiKey: String, modelId: String) {
@@ -487,11 +515,14 @@ exec "$prefix/bin/git-real" \
                 addLog("> 写入 OpenClaw 配置文件...")
 
                 val openclawBin = "$installDir/node_modules/openclaw/openclaw.mjs"
-                // Create config directory
+                // Write config to both possible locations for compatibility
                 val configDir = File(homeDir, ".config/openclaw")
                 configDir.mkdirs()
+                val configDir2 = File(homeDir, ".openclaw")
+                configDir2.mkdirs()
                 // Write config.json directly (more reliable than onboard command)
                 val configFile = File(configDir, "config.json")
+                val configFile2 = File(configDir2, "openclaw.json")
                 val providerId = "custom"
                 configFile.writeText("""
 {
@@ -546,7 +577,10 @@ exec "$prefix/bin/git-real" \
   }
 }
 """)
-                addLog("  ✔ config.json 已写入: ${configFile.absolutePath}")
+                // Write to both locations for compatibility
+                configFile2.writeText(configFile.readText())
+                addLog("  ✔ config 已写入: ${configFile.absolutePath}")
+                addLog("  ✔ config 已写入: ${configFile2.absolutePath}")
                 addLog("✔ OpenClaw 配置完成")
 
                 // Create workspace directory

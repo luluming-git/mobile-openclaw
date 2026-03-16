@@ -5,6 +5,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.openclaw.mobile.ui.screens.SetupScreen
 import com.openclaw.mobile.ui.screens.StatusScreen
+import com.openclaw.mobile.ui.screens.TerminalScreen
 import com.openclaw.mobile.ui.screens.WebViewScreen
 import com.openclaw.mobile.viewmodel.MainViewModel
 
@@ -16,11 +17,19 @@ fun OpenClawApp() {
     )
     val uiState by viewModel.uiState.collectAsState()
 
-    // WebView navigation state
+    // Navigation state
     var webViewUrl by remember { mutableStateOf<String?>(null) }
     var webViewTitle by remember { mutableStateOf("") }
+    var showTerminal by remember { mutableStateOf(false) }
 
     when {
+        // Terminal console
+        showTerminal -> {
+            TerminalScreen(
+                viewModel = viewModel,
+                onBack = { showTerminal = false }
+            )
+        }
         // WebView is open
         webViewUrl != null -> {
             WebViewScreen(
@@ -42,8 +51,7 @@ fun OpenClawApp() {
                     webViewTitle = "OpenClaw 对话"
                 },
                 onOpenPanel = {
-                    webViewUrl = uiState.gatewayUrl
-                    webViewTitle = "控制面板"
+                    showTerminal = true
                 }
             )
         }
