@@ -443,9 +443,20 @@ exec "$prefix/bin/git-real" \
 """.trimIndent())
                 addLog("> 安装 OpenClaw (使用 overrides 绕过 git 依赖)...")
 
+                var npmLineCount = 0
                 val openclawResult = terminalSession!!.execute(
                     "cd $installDir && ${'$'}PREFIX/bin/node $npmCli install --ignore-scripts --no-optional 2>&1",
-                    onOutput = { addLog("  $it") }
+                    onOutput = { line ->
+                        npmLineCount++
+                        // Only show important lines, skip verbose http fetch logs
+                        if (line.contains("npm error") || line.contains("npm warn") ||
+                            line.contains("added ") || line.contains("packages in") ||
+                            line.contains("npm notice") || npmLineCount <= 3) {
+                            addLog("  $line")
+                        } else if (npmLineCount % 50 == 0) {
+                            addLog("  ... 正在安装 ($npmLineCount 行日志)")
+                        }
+                    }
                 )
 
                 if (openclawResult != 0) {
@@ -460,18 +471,21 @@ exec "$prefix/bin/git-real" \
                 // openclaw is now in local project
                 val openclawBin = "$installDir/node_modules/openclaw/openclaw.mjs"
                 val configResult = terminalSession!!.execute(
-                    """${'$'}PREFIX/bin/node $openclawBin onboard \
-                        --non-interactive \
-                        --mode local \
-                        --auth-choice custom-api-key \
-                        --custom-base-url "$baseUrl" \
-                        --custom-api-key "$apiKey" \
-                        --custom-model-id "$modelId" \
-                        --custom-compatibility openai \
-                        --no-install-daemon \
-                        --skip-channels \
-                        --skip-skills \
-                        --skip-health""".trimIndent(),
+                    "cd $installDir && ${'$'}PREFIX/bin/node $openclawBin onboard " +
+                        "--non-interactive " +
+                        "--mode local " +
+                        "--auth-choice custom-api-key " +
+                        "--custom-base-url \"$baseUrl\" " +
+                        "--custom-api-key \"$apiKey\" " +
+                        "--custom-model-id \"$modelId\" " +
+                        "--custom-compatibility openai " +
+                        "--no-install-daemon " +
+                        "--skip-channels " +
+                        "--skip-skills " +
+                        "--skip-health " +
+                        "--skip-ui " +
+                        "--gateway-port 18789 " +
+                        "--gateway-bind loopback 2>&1",
                     onOutput = { addLog("  $it") }
                 )
 
