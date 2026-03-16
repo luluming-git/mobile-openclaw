@@ -1,4 +1,3 @@
 <resources>
     <string name="app_name">OpenClaw</string>
-    <string name="accessibility_description">OpenClaw AI 手机控制服务。开启后 AI 助手可以读取屏幕内容、模拟点击和滑动、输入文字、打开应用。</string>
 </resources>
