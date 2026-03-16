@@ -503,6 +503,7 @@ exec "$prefix/bin/git-real" \
     }
   },
   "gateway": {
+    "mode": "local",
     "port": 18789,
     "bind": "loopback"
   }
@@ -578,7 +579,7 @@ exec "$prefix/bin/git-real" \
         terminalSession?.let { session ->
             viewModelScope.launch(Dispatchers.IO) {
                 gatewayProcess = session.startLongRunning(
-                    "cd ${'$'}HOME/openclaw-install && ${'$'}PREFIX/bin/node node_modules/openclaw/openclaw.mjs gateway",
+                    "cd ${'$'}HOME/openclaw-install && ${'$'}PREFIX/bin/node node_modules/openclaw/openclaw.mjs gateway --allow-unconfigured",
                     onOutput = { addLog(it) }
                 )
             }
