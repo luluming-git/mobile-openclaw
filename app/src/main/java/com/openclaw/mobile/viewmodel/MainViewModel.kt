@@ -490,22 +490,51 @@ exec "$prefix/bin/git-real" \
                 configDir.mkdirs()
                 // Write config.json directly (more reliable than onboard command)
                 val configFile = File(configDir, "config.json")
+                // Use the correct OpenClaw config format (models.providers + agents.defaults)
+                val providerId = "custom"
                 configFile.writeText("""
 {
-  "${'$'}schema": "https://openclaw.ai/config-schema.json",
-  "ai": {
-    "provider": "custom",
-    "custom": {
-      "baseUrl": "$baseUrl",
-      "apiKey": "$apiKey",
-      "modelId": "$modelId",
-      "compatibility": "openai"
+  "meta": {
+    "lastTouchedVersion": "2026.3.13"
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "$providerId": {
+        "baseUrl": "$baseUrl",
+        "apiKey": "$apiKey",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "$modelId",
+            "name": "$modelId",
+            "reasoning": true,
+            "input": ["text"],
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "$providerId/$modelId"
+      },
+      "workspace": "$homeDir/.openclaw/workspace",
+      "maxConcurrent": 2
     }
   },
   "gateway": {
-    "mode": "local",
     "port": 18789,
-    "bind": "loopback"
+    "mode": "local",
+    "bind": "loopback",
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    }
   }
 }
 """)
