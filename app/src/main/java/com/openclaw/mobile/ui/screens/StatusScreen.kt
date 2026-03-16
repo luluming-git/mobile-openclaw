@@ -31,7 +31,9 @@ fun StatusScreen(
     onStop: () -> Unit,
     onRestart: () -> Unit,
     onCopyLogs: () -> Unit = {},
-    onDismiss: () -> Unit = {}
+    onDismiss: () -> Unit = {},
+    onOpenChat: () -> Unit = {},
+    onOpenPanel: () -> Unit = {}
 ) {
     val listState = rememberLazyListState()
 
@@ -97,20 +99,36 @@ fun StatusScreen(
                     Spacer(modifier = Modifier.weight(1f))
 
                     if (uiState.isRunning) {
-                        // Open browser button
+                        // Open chat button
                         FilledTonalButton(
-                            onClick = { /* Open browser */ },
+                            onClick = onOpenChat,
                             colors = ButtonDefaults.filledTonalButtonColors(
                                 containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
                             )
                         ) {
                             Icon(
-                                Icons.Default.OpenInBrowser,
+                                Icons.Default.Chat,
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("控制面板", fontSize = 12.sp)
+                            Text("对话", fontSize = 12.sp)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        // Open control panel button
+                        FilledTonalButton(
+                            onClick = onOpenPanel,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
+                            )
+                        ) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("控制台", fontSize = 12.sp)
                         }
                     }
                 }

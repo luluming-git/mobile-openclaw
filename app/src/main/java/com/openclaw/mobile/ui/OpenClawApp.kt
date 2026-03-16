@@ -5,6 +5,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.openclaw.mobile.ui.screens.SetupScreen
 import com.openclaw.mobile.ui.screens.StatusScreen
+import com.openclaw.mobile.ui.screens.WebViewScreen
 import com.openclaw.mobile.viewmodel.MainViewModel
 
 @Composable
@@ -15,16 +16,38 @@ fun OpenClawApp() {
     )
     val uiState by viewModel.uiState.collectAsState()
 
+    // WebView navigation state
+    var webViewUrl by remember { mutableStateOf<String?>(null) }
+    var webViewTitle by remember { mutableStateOf("") }
+
     when {
+        // WebView is open
+        webViewUrl != null -> {
+            WebViewScreen(
+                url = webViewUrl!!,
+                title = webViewTitle,
+                onBack = { webViewUrl = null }
+            )
+        }
+        // Status / Installing / Running
         uiState.isRunning || uiState.isInstalling || uiState.showLogs -> {
             StatusScreen(
                 uiState = uiState,
                 onStop = { viewModel.stopGateway() },
                 onRestart = { viewModel.restartGateway() },
                 onCopyLogs = { viewModel.copyLogs() },
-                onDismiss = { viewModel.dismissLogs() }
+                onDismiss = { viewModel.dismissLogs() },
+                onOpenChat = {
+                    webViewUrl = "http://localhost:18789"
+                    webViewTitle = "OpenClaw 对话"
+                },
+                onOpenPanel = {
+                    webViewUrl = "http://localhost:18789"
+                    webViewTitle = "控制面板"
+                }
             )
         }
+        // Setup screen
         else -> {
             SetupScreen(
                 uiState = uiState,
