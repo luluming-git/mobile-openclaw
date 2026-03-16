@@ -414,7 +414,9 @@ exec "$prefix/bin/git-real" \
 """.trimIndent() + "\n")
                 addLog("  ✔ git 包装脚本已创建")
 
-                // Step 3: Install OpenClaw (use node to call npm-cli.js directly, bypass shebang)
+                // Step 3: Install OpenClaw using npm overrides to bypass git dependencies
+                // The issue: openclaw → @whiskeysockets/baileys → libsignal-node (git URL)
+                // Solution: create a temp project with overrides to replace git URL with npm version
                 updateStep("正在安装 OpenClaw...", 0.6f)
 
                 // Clean ALL npm cache to avoid stale data from previous failures
@@ -424,11 +426,25 @@ exec "$prefix/bin/git-real" \
                     onOutput = { addLog("  $it") }
                 )
 
-                addLog("> 通过 node 直接运行 npm install -g openclaw...")
-                addLog("  (使用 verbose 模式查看详细日志)")
+                // Create a temp project directory with package.json that overrides git deps
+                val installDir = File(homeDir, "openclaw-install")
+                installDir.mkdirs()
+                File(installDir, "package.json").writeText("""
+{
+  "name": "openclaw-installer",
+  "private": true,
+  "dependencies": {
+    "openclaw": "latest"
+  },
+  "overrides": {
+    "libsignal": "npm:@whiskeysockets/libsignal-node@*"
+  }
+}
+""".trimIndent())
+                addLog("> 安装 OpenClaw (使用 overrides 绕过 git 依赖)...")
 
                 val openclawResult = terminalSession!!.execute(
-                    "${'$'}PREFIX/bin/node $npmCli install -g openclaw --ignore-scripts --no-optional --loglevel verbose 2>&1",
+                    "cd $installDir && ${'$'}PREFIX/bin/node $npmCli install --ignore-scripts --no-optional 2>&1",
                     onOutput = { addLog("  $it") }
                 )
 
@@ -441,8 +457,10 @@ exec "$prefix/bin/git-real" \
                 updateStep("正在配置 OpenClaw...", 0.8f)
                 addLog("> 自动配置 (onboard --non-interactive)...")
 
+                // openclaw is now in local project
+                val openclawBin = "$installDir/node_modules/openclaw/openclaw.mjs"
                 val configResult = terminalSession!!.execute(
-                    """${'$'}PREFIX/bin/node ${'$'}PREFIX/lib/node_modules/openclaw/bin/openclaw.js onboard \
+                    """${'$'}PREFIX/bin/node $openclawBin onboard \
                         --non-interactive \
                         --mode local \
                         --auth-choice custom-api-key \
@@ -509,7 +527,7 @@ exec "$prefix/bin/git-real" \
         terminalSession?.let { session ->
             viewModelScope.launch(Dispatchers.IO) {
                 gatewayProcess = session.startLongRunning(
-                    "openclaw gateway",
+                    "cd ${'$'}HOME/openclaw-install && ${'$'}PREFIX/bin/node node_modules/openclaw/openclaw.mjs gateway",
                     onOutput = { addLog(it) }
                 )
             }
