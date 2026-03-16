@@ -38,11 +38,11 @@ fun OpenClawApp() {
                 onCopyLogs = { viewModel.copyLogs() },
                 onDismiss = { viewModel.dismissLogs() },
                 onOpenChat = {
-                    webViewUrl = "http://localhost:18789"
+                    webViewUrl = uiState.gatewayUrl
                     webViewTitle = "OpenClaw 对话"
                 },
                 onOpenPanel = {
-                    webViewUrl = "http://localhost:18789"
+                    webViewUrl = uiState.gatewayUrl
                     webViewTitle = "控制面板"
                 }
             )

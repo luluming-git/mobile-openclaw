@@ -574,12 +574,60 @@ exec "$prefix/bin/git-real" \
                     }
                 }
 
+                // Give gateway a moment to write its auto-generated token to config
+                kotlinx.coroutines.delay(2000)
+
+                // Read back the config to get the auto-generated auth token
+                var gatewayToken = ""
+                try {
+                    val updatedConfig = configFile.readText()
+                    // Extract token from JSON: "token": "xxxxx"
+                    val tokenRegex = Regex(""""token"\s*:\s*"([^"]+)"""")
+                    val matches = tokenRegex.findAll(updatedConfig).toList()
+                    // Find the gateway auth token (last "token" field in gateway.auth section)
+                    for (match in matches) {
+                        val t = match.groupValues[1]
+                        // Skip the API key
+                        if (t != apiKey && t.length > 8) {
+                            gatewayToken = t
+                        }
+                    }
+                    if (gatewayToken.isNotEmpty()) {
+                        addLog("  ✔ 获取到 Gateway token")
+                    } else {
+                        addLog("  ⚠ 未能从 config 中提取 token")
+                    }
+                } catch (e: Exception) {
+                    addLog("  ⚠ 读取 config 失败: ${e.message}")
+                }
+
+                // Try to get the dashboard URL using the openclaw command
+                var dashboardUrl = ""
+                if (gatewayToken.isNotEmpty()) {
+                    addLog("  获取 Dashboard URL...")
+                    terminalSession!!.execute(
+                        "cd $installDir && ${'$'}PREFIX/bin/node node_modules/.bin/openclaw dashboard --no-open --token \"$gatewayToken\" 2>&1",
+                        onOutput = { line ->
+                            addLog("  $line")
+                            val trimmed = line.trim()
+                            if (trimmed.startsWith("http")) {
+                                dashboardUrl = trimmed
+                            }
+                        }
+                    )
+                }
+
+                // Fallback: construct URL manually if command didn't return one
+                if (dashboardUrl.isEmpty() && gatewayToken.isNotEmpty()) {
+                    dashboardUrl = "http://localhost:18789/?token=$gatewayToken"
+                    addLog("  使用手动构建的 URL")
+                }
+
                 if (gatewayReady) {
                     addLog("✔ Gateway 启动成功")
-                    addLog("✔ 控制面板: http://localhost:18789")
+                    addLog("✔ Dashboard: $dashboardUrl")
                 } else {
                     addLog("⚠ Gateway 可能还在启动中...")
-                    addLog("  请稍后点击【对话】或【控制台】按钮")
                 }
 
                 _uiState.update {
@@ -587,7 +635,8 @@ exec "$prefix/bin/git-real" \
                         isInstalling = false,
                         isRunning = true,
                         installStep = "",
-                        installProgress = 1f
+                        installProgress = 1f,
+                        gatewayUrl = dashboardUrl.ifEmpty { "http://localhost:18789" }
                     )
                 }
 
