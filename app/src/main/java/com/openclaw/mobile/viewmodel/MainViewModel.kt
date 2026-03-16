@@ -28,7 +28,8 @@ data class UiState(
     val savedApiKey: String = "",
     val models: List<String> = emptyList(),
     val isFetchingModels: Boolean = false,
-    val modelError: String? = null
+    val modelError: String? = null,
+    val gatewayToken: String = ""
 )
 
 class MainViewModel(private val app: Application) : AndroidViewModel(app) {
@@ -490,8 +491,9 @@ exec "$prefix/bin/git-real" \
                 configDir.mkdirs()
                 // Write config.json directly (more reliable than onboard command)
                 val configFile = File(configDir, "config.json")
-                // Use the correct OpenClaw config format (models.providers + agents.defaults)
                 val providerId = "custom"
+                // Generate a gateway auth token
+                val gatewayToken = java.util.UUID.randomUUID().toString().replace("-", "").take(32)
                 configFile.writeText("""
 {
   "meta": {
@@ -531,6 +533,10 @@ exec "$prefix/bin/git-real" \
     "port": 18789,
     "mode": "local",
     "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "$gatewayToken"
+    },
     "tailscale": {
       "mode": "off",
       "resetOnExit": false
@@ -549,27 +555,6 @@ exec "$prefix/bin/git-real" \
                 updateStep("正在启动 Gateway...", 0.95f)
                 addLog("> 启动 openclaw gateway...")
 
-                // Diagnose: find the actual openclaw entry point
-                addLog("  查找 openclaw 入口文件...")
-                terminalSession!!.execute(
-                    "ls -la $installDir/node_modules/openclaw/*.mjs $installDir/node_modules/openclaw/*.js $installDir/node_modules/openclaw/bin/* 2>&1 | head -10",
-                    onOutput = { addLog("  $it") }
-                )
-
-                // Also check package.json for bin/main fields
-                terminalSession!!.execute(
-                    "cd $installDir/node_modules/openclaw && cat package.json | grep -E '\"main\"|\"bin\"|\"module\"' 2>&1",
-                    onOutput = { addLog("  $it") }
-                )
-
-                // Try running gateway once (short timeout) to capture errors
-                addLog("  测试运行 gateway 命令...")
-                terminalSession!!.execute(
-                    "cd $installDir && timeout 5 ${'$'}PREFIX/bin/node node_modules/.bin/openclaw gateway --allow-unconfigured --port 18789 --bind loopback 2>&1 || true",
-                    onOutput = { addLog("  [gw] $it") }
-                )
-
-                // Now start for real as long-running
                 startGatewayProcess()
 
                 // Wait for gateway to actually start listening
@@ -600,7 +585,8 @@ exec "$prefix/bin/git-real" \
                         isInstalling = false,
                         isRunning = true,
                         installStep = "",
-                        installProgress = 1f
+                        installProgress = 1f,
+                        gatewayToken = gatewayToken
                     )
                 }
 
