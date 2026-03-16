@@ -493,8 +493,6 @@ exec "$prefix/bin/git-real" \
                 // Write config.json directly (more reliable than onboard command)
                 val configFile = File(configDir, "config.json")
                 val providerId = "custom"
-                // Generate a gateway auth token
-                val gatewayToken = java.util.UUID.randomUUID().toString().replace("-", "").take(32)
                 configFile.writeText("""
 {
   "meta": {
@@ -534,10 +532,6 @@ exec "$prefix/bin/git-real" \
     "port": 18789,
     "mode": "local",
     "bind": "loopback",
-    "auth": {
-      "mode": "token",
-      "token": "$gatewayToken"
-    },
     "tailscale": {
       "mode": "off",
       "resetOnExit": false
@@ -575,46 +569,19 @@ exec "$prefix/bin/git-real" \
 
                 if (gatewayReady) {
                     addLog("✔ Gateway 启动成功")
-
-                    // Get the dashboard URL with token
-                    var dashboardUrl = "http://localhost:18789"
-                    addLog("  获取带 token 的 Dashboard URL...")
-                    terminalSession!!.execute(
-                        "cd $installDir && ${'$'}PREFIX/bin/node node_modules/.bin/openclaw dashboard --no-open 2>&1",
-                        onOutput = { line ->
-                            addLog("  $line")
-                            // Capture URL from output (usually starts with http)
-                            if (line.trim().startsWith("http")) {
-                                dashboardUrl = line.trim()
-                            }
-                        }
-                    )
-                    addLog("✔ Dashboard: $dashboardUrl")
-
-                    _uiState.update {
-                        it.copy(
-                            isInstalling = false,
-                            isRunning = true,
-                            installStep = "",
-                            installProgress = 1f,
-                            gatewayToken = gatewayToken,
-                            gatewayUrl = dashboardUrl
-                        )
-                    }
+                    addLog("✔ 控制面板: http://localhost:18789")
                 } else {
                     addLog("⚠ Gateway 可能还在启动中...")
                     addLog("  请稍后点击【对话】或【控制台】按钮")
+                }
 
-                    _uiState.update {
-                        it.copy(
-                            isInstalling = false,
-                            isRunning = true,
-                            installStep = "",
-                            installProgress = 1f,
-                            gatewayToken = gatewayToken,
-                            gatewayUrl = "http://localhost:18789"
-                        )
-                    }
+                _uiState.update {
+                    it.copy(
+                        isInstalling = false,
+                        isRunning = true,
+                        installStep = "",
+                        installProgress = 1f
+                    )
                 }
 
             } catch (e: Exception) {
