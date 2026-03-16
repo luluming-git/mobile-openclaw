@@ -29,7 +29,8 @@ data class UiState(
     val models: List<String> = emptyList(),
     val isFetchingModels: Boolean = false,
     val modelError: String? = null,
-    val gatewayToken: String = ""
+    val gatewayToken: String = "",
+    val gatewayUrl: String = ""
 )
 
 class MainViewModel(private val app: Application) : AndroidViewModel(app) {
@@ -574,20 +575,46 @@ exec "$prefix/bin/git-real" \
 
                 if (gatewayReady) {
                     addLog("✔ Gateway 启动成功")
-                    addLog("✔ 控制面板: http://localhost:18789")
+
+                    // Get the dashboard URL with token
+                    var dashboardUrl = "http://localhost:18789"
+                    addLog("  获取带 token 的 Dashboard URL...")
+                    terminalSession!!.execute(
+                        "cd $installDir && ${'$'}PREFIX/bin/node node_modules/.bin/openclaw dashboard --no-open 2>&1",
+                        onOutput = { line ->
+                            addLog("  $line")
+                            // Capture URL from output (usually starts with http)
+                            if (line.trim().startsWith("http")) {
+                                dashboardUrl = line.trim()
+                            }
+                        }
+                    )
+                    addLog("✔ Dashboard: $dashboardUrl")
+
+                    _uiState.update {
+                        it.copy(
+                            isInstalling = false,
+                            isRunning = true,
+                            installStep = "",
+                            installProgress = 1f,
+                            gatewayToken = gatewayToken,
+                            gatewayUrl = dashboardUrl
+                        )
+                    }
                 } else {
                     addLog("⚠ Gateway 可能还在启动中...")
                     addLog("  请稍后点击【对话】或【控制台】按钮")
-                }
 
-                _uiState.update {
-                    it.copy(
-                        isInstalling = false,
-                        isRunning = true,
-                        installStep = "",
-                        installProgress = 1f,
-                        gatewayToken = gatewayToken
-                    )
+                    _uiState.update {
+                        it.copy(
+                            isInstalling = false,
+                            isRunning = true,
+                            installStep = "",
+                            installProgress = 1f,
+                            gatewayToken = gatewayToken,
+                            gatewayUrl = "http://localhost:18789"
+                        )
+                    }
                 }
 
             } catch (e: Exception) {
