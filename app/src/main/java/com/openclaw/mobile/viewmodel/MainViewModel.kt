@@ -115,10 +115,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 updateStep("正在下载 Linux 运行环境...", 0.1f)
                 addLog("> 下载 Termux bootstrap 包...")
 
+                var lastDownloadMb = -1
                 bootstrapManager.downloadAndExtract(
                     onProgress = { progress, message ->
                         updateStep(message, 0.1f + progress * 0.3f)
-                        addLog("  $message")
+                        // Throttle download progress logs: only log when MB changes
+                        val mbMatch = Regex("(\\d+)MB").find(message)
+                        if (mbMatch != null) {
+                            val mb = mbMatch.groupValues[1].toIntOrNull() ?: 0
+                            if (mb != lastDownloadMb) {
+                                lastDownloadMb = mb
+                                addLog("  $message")
+                            }
+                        } else {
+                            addLog("  $message")
+                        }
                     }
                 )
 
@@ -214,10 +225,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                         val debUrl = "$repo/pool/main/n/nodejs-lts/$debName"
                         addLog("  尝试 $name 下载 $debName ...")
                         try {
+                            var lastNodeMb = -1
                             bootstrapManager.downloadFile(debUrl, debFile) { downloaded, total ->
-                                val mb = downloaded / (1024 * 1024)
-                                val totalMb = if (total > 0) total / (1024 * 1024) else 9
+                                val mb = (downloaded / (1024 * 1024)).toInt()
+                                val totalMb = if (total > 0) (total / (1024 * 1024)).toInt() else 9
                                 updateStep("下载 Node.js: ${mb}/${totalMb}MB ($name)", 0.55f + (if (total > 0) downloaded.toFloat() / total * 0.1f else 0f))
+                                if (mb != lastNodeMb) {
+                                    lastNodeMb = mb
+                                    addLog("  下载 Node.js: ${mb}/${totalMb}MB")
+                                }
                             }
                             addLog("  ✔ 从 $name 下载成功")
                             downloadSuccess = true
@@ -464,34 +480,35 @@ exec "$prefix/bin/git-real" \
                 }
                 addLog("✔ OpenClaw 安装完成")
 
-                // Step 4: Configure OpenClaw
+                // Step 4: Configure OpenClaw — write config file directly
                 updateStep("正在配置 OpenClaw...", 0.8f)
-                addLog("> 自动配置 (onboard --non-interactive)...")
+                addLog("> 写入 OpenClaw 配置文件...")
 
-                // openclaw is now in local project
                 val openclawBin = "$installDir/node_modules/openclaw/openclaw.mjs"
-                val configResult = terminalSession!!.execute(
-                    "cd $installDir && ${'$'}PREFIX/bin/node $openclawBin onboard " +
-                        "--non-interactive " +
-                        "--mode local " +
-                        "--auth-choice custom-api-key " +
-                        "--custom-base-url \"$baseUrl\" " +
-                        "--custom-api-key \"$apiKey\" " +
-                        "--custom-model-id \"$modelId\" " +
-                        "--custom-compatibility openai " +
-                        "--no-install-daemon " +
-                        "--skip-channels " +
-                        "--skip-skills " +
-                        "--skip-health " +
-                        "--skip-ui " +
-                        "--gateway-port 18789 " +
-                        "--gateway-bind loopback 2>&1",
-                    onOutput = { addLog("  $it") }
-                )
-
-                if (configResult != 0) {
-                    throw Exception("OpenClaw 配置失败 (exit code: $configResult)")
-                }
+                // Create config directory
+                val configDir = File(homeDir, ".config/openclaw")
+                configDir.mkdirs()
+                // Write config.json directly (more reliable than onboard command)
+                val configFile = File(configDir, "config.json")
+                configFile.writeText("""
+{
+  "${'$'}schema": "https://openclaw.ai/config-schema.json",
+  "ai": {
+    "provider": "custom",
+    "custom": {
+      "baseUrl": "$baseUrl",
+      "apiKey": "$apiKey",
+      "modelId": "$modelId",
+      "compatibility": "openai"
+    }
+  },
+  "gateway": {
+    "port": 18789,
+    "bind": "loopback"
+  }
+}
+""")
+                addLog("  ✔ config.json 已写入: ${configFile.absolutePath}")
                 addLog("✔ OpenClaw 配置完成")
 
                 // Step 5: Start gateway
