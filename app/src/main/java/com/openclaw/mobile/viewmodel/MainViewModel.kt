@@ -588,8 +588,8 @@ exec "$prefix/bin/git-real" \
                     try {
                         val updatedConfig = configFile.readText()
                         addLog("  config.json 大小: ${updatedConfig.length} 字节")
-                        // Extract token from gateway.auth section
-                        val tokenRegex = Regex(""""token"\s*:\s*"([^"]+)"""")
+                        // Match token in both JSON ("token": "xxx") and JS (token: 'xxx') format
+                        val tokenRegex = Regex("""(?:"token"|token)\s*[:=]\s*['"]([^'"]+)['"]""")
                         val matches = tokenRegex.findAll(updatedConfig).toList()
                         addLog("  找到 ${matches.size} 个 token 字段")
                         for (match in matches) {
@@ -606,7 +606,8 @@ exec "$prefix/bin/git-real" \
 
                     if (gatewayToken.isNotEmpty()) {
                         addLog("  ✔ 获取到 Gateway token: ${gatewayToken.take(8)}...")
-                        dashboardUrl = "http://localhost:18789/?token=$gatewayToken"
+                        // Use hash format as OpenClaw expects: /#token=xxx
+                        dashboardUrl = "http://127.0.0.1:18789/#token=$gatewayToken"
                     } else {
                         addLog("  ⚠ 未能提取 token，尝试 dashboard 命令...")
                         // Fallback: try openclaw dashboard command
@@ -614,9 +615,11 @@ exec "$prefix/bin/git-real" \
                             "cd $installDir && ${'$'}PREFIX/bin/node node_modules/.bin/openclaw dashboard --no-open 2>&1",
                             onOutput = { line ->
                                 addLog("  [dashboard] $line")
-                                val trimmed = line.trim()
-                                if (trimmed.startsWith("http")) {
-                                    dashboardUrl = trimmed
+                                // Extract URL from lines like "Dashboard URL: http://..."
+                                val urlRegex = Regex("""(https?://\S+)""")
+                                val urlMatch = urlRegex.find(line)
+                                if (urlMatch != null) {
+                                    dashboardUrl = urlMatch.groupValues[1]
                                 }
                             }
                         )
