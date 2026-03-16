@@ -541,10 +541,35 @@ exec "$prefix/bin/git-real" \
                 addLog("  ✔ config.json 已写入: ${configFile.absolutePath}")
                 addLog("✔ OpenClaw 配置完成")
 
+                // Create workspace directory
+                val workspaceDir = File(homeDir, ".openclaw/workspace")
+                workspaceDir.mkdirs()
+
                 // Step 5: Start gateway
                 updateStep("正在启动 Gateway...", 0.95f)
                 addLog("> 启动 openclaw gateway...")
 
+                // Diagnose: find the actual openclaw entry point
+                addLog("  查找 openclaw 入口文件...")
+                terminalSession!!.execute(
+                    "ls -la $installDir/node_modules/openclaw/*.mjs $installDir/node_modules/openclaw/*.js $installDir/node_modules/openclaw/bin/* 2>&1 | head -10",
+                    onOutput = { addLog("  $it") }
+                )
+
+                // Also check package.json for bin/main fields
+                terminalSession!!.execute(
+                    "cd $installDir/node_modules/openclaw && cat package.json | grep -E '\"main\"|\"bin\"|\"module\"' 2>&1",
+                    onOutput = { addLog("  $it") }
+                )
+
+                // Try running gateway once (short timeout) to capture errors
+                addLog("  测试运行 gateway 命令...")
+                terminalSession!!.execute(
+                    "cd $installDir && timeout 5 ${'$'}PREFIX/bin/node node_modules/.bin/openclaw gateway --allow-unconfigured --port 18789 --bind loopback 2>&1 || true",
+                    onOutput = { addLog("  [gw] $it") }
+                )
+
+                // Now start for real as long-running
                 startGatewayProcess()
 
                 // Wait for gateway to actually start listening
@@ -608,7 +633,7 @@ exec "$prefix/bin/git-real" \
         terminalSession?.let { session ->
             viewModelScope.launch(Dispatchers.IO) {
                 gatewayProcess = session.startLongRunning(
-                    "cd ${'$'}HOME/openclaw-install && ${'$'}PREFIX/bin/node node_modules/openclaw/openclaw.mjs gateway --allow-unconfigured",
+                    "cd ${'$'}HOME/openclaw-install && ${'$'}PREFIX/bin/node node_modules/.bin/openclaw gateway --allow-unconfigured --port 18789 --bind loopback 2>&1",
                     onOutput = { addLog(it) }
                 )
             }
