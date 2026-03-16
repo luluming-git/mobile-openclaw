@@ -517,8 +517,28 @@ exec "$prefix/bin/git-real" \
 
                 startGatewayProcess()
 
-                addLog("✔ Gateway 启动成功")
-                addLog("✔ 控制面板: http://localhost:18789")
+                // Wait for gateway to actually start listening
+                addLog("  等待 Gateway 启动...")
+                var gatewayReady = false
+                for (i in 1..30) {
+                    kotlinx.coroutines.delay(1000)
+                    try {
+                        java.net.Socket("127.0.0.1", 18789).use {
+                            gatewayReady = true
+                        }
+                        break
+                    } catch (_: Exception) {
+                        if (i % 5 == 0) addLog("  ... 等待中 (${i}s)")
+                    }
+                }
+
+                if (gatewayReady) {
+                    addLog("✔ Gateway 启动成功")
+                    addLog("✔ 控制面板: http://localhost:18789")
+                } else {
+                    addLog("⚠ Gateway 可能还在启动中...")
+                    addLog("  请稍后点击【对话】或【控制台】按钮")
+                }
 
                 _uiState.update {
                     it.copy(
