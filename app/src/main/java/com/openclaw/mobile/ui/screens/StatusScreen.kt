@@ -188,6 +188,56 @@ fun StatusScreen(
                         InfoRow("状态", "● 在线")
                     }
                 }
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Phone control status card
+                val isAccessibilityEnabled = com.openclaw.mobile.service.PhoneControlService.instance != null
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color.White.copy(alpha = 0.05f)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.PhoneAndroid,
+                                contentDescription = null,
+                                tint = if (isAccessibilityEnabled) Color(0xFF00E676) else Color(0xFFFFD600),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "手机控制",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                text = if (isAccessibilityEnabled) "● 已开启" else "○ 未开启",
+                                color = if (isAccessibilityEnabled) Color(0xFF00E676) else Color(0xFFFFD600),
+                                fontSize = 12.sp
+                            )
+                        }
+                        if (!isAccessibilityEnabled) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            OutlinedButton(
+                                onClick = {
+                                    val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    context.startActivity(intent)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("开启无障碍权限", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
             }
 

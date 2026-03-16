@@ -660,6 +660,17 @@ exec "$prefix/bin/git-real" \
                 val workspaceDir = File(homeDir, ".openclaw/workspace")
                 workspaceDir.mkdirs()
 
+                // Install phone-control script to PATH
+                try {
+                    val scriptInput = app.assets.open("phone-control.sh")
+                    val scriptFile = File(bootstrapManager.prefixDir, "bin/phone-control")
+                    scriptFile.outputStream().use { scriptInput.copyTo(it) }
+                    scriptFile.setExecutable(true)
+                    addLog("  ✔ phone-control 命令已安装")
+                } catch (e: Exception) {
+                    addLog("  ⚠ phone-control 安装失败: ${e.message}")
+                }
+
                 // Step 5: Start gateway
                 updateStep("正在启动 Gateway...", 0.95f)
                 addLog("> 启动 openclaw gateway...")
