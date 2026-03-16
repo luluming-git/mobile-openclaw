@@ -559,10 +559,10 @@ exec "$prefix/bin/git-real" \
 
                 startGatewayProcess()
 
-                // Wait for gateway to actually start listening
-                addLog("  等待 Gateway 启动...")
+                // Wait for gateway to actually start listening (mobile devices can be slow)
+                addLog("  等待 Gateway 启动 (移动设备可能需要60秒+)...")
                 var gatewayReady = false
-                for (i in 1..30) {
+                for (i in 1..90) {
                     kotlinx.coroutines.delay(1000)
                     try {
                         java.net.Socket("127.0.0.1", 18789).use {
@@ -570,64 +570,62 @@ exec "$prefix/bin/git-real" \
                         }
                         break
                     } catch (_: Exception) {
-                        if (i % 5 == 0) addLog("  ... 等待中 (${i}s)")
+                        if (i % 10 == 0) addLog("  ... 等待中 (${i}s)")
                     }
                 }
 
-                // Give gateway a moment to write its auto-generated token to config
-                kotlinx.coroutines.delay(2000)
-
-                // Read back the config to get the auto-generated auth token
-                var gatewayToken = ""
-                try {
-                    val updatedConfig = configFile.readText()
-                    // Extract token from JSON: "token": "xxxxx"
-                    val tokenRegex = Regex(""""token"\s*:\s*"([^"]+)"""")
-                    val matches = tokenRegex.findAll(updatedConfig).toList()
-                    // Find the gateway auth token (last "token" field in gateway.auth section)
-                    for (match in matches) {
-                        val t = match.groupValues[1]
-                        // Skip the API key
-                        if (t != apiKey && t.length > 8) {
-                            gatewayToken = t
-                        }
-                    }
-                    if (gatewayToken.isNotEmpty()) {
-                        addLog("  ✔ 获取到 Gateway token")
-                    } else {
-                        addLog("  ⚠ 未能从 config 中提取 token")
-                    }
-                } catch (e: Exception) {
-                    addLog("  ⚠ 读取 config 失败: ${e.message}")
-                }
-
-                // Try to get the dashboard URL using the openclaw command
-                var dashboardUrl = ""
-                if (gatewayToken.isNotEmpty()) {
-                    addLog("  获取 Dashboard URL...")
-                    terminalSession!!.execute(
-                        "cd $installDir && ${'$'}PREFIX/bin/node node_modules/.bin/openclaw dashboard --no-open --token \"$gatewayToken\" 2>&1",
-                        onOutput = { line ->
-                            addLog("  $line")
-                            val trimmed = line.trim()
-                            if (trimmed.startsWith("http")) {
-                                dashboardUrl = trimmed
-                            }
-                        }
-                    )
-                }
-
-                // Fallback: construct URL manually if command didn't return one
-                if (dashboardUrl.isEmpty() && gatewayToken.isNotEmpty()) {
-                    dashboardUrl = "http://localhost:18789/?token=$gatewayToken"
-                    addLog("  使用手动构建的 URL")
-                }
+                var dashboardUrl = "http://localhost:18789"
 
                 if (gatewayReady) {
                     addLog("✔ Gateway 启动成功")
+
+                    // Gateway auto-generates a token and writes it to config on startup
+                    // Wait a moment for the file write to complete
+                    kotlinx.coroutines.delay(3000)
+
+                    // Read back the config to get the auto-generated auth token
+                    var gatewayToken = ""
+                    try {
+                        val updatedConfig = configFile.readText()
+                        addLog("  config.json 大小: ${updatedConfig.length} 字节")
+                        // Extract token from gateway.auth section
+                        val tokenRegex = Regex(""""token"\s*:\s*"([^"]+)"""")
+                        val matches = tokenRegex.findAll(updatedConfig).toList()
+                        addLog("  找到 ${matches.size} 个 token 字段")
+                        for (match in matches) {
+                            val t = match.groupValues[1]
+                            addLog("  token候选: ${t.take(8)}... (长度${t.length})")
+                            // Skip the API key
+                            if (t != apiKey && t.length > 8) {
+                                gatewayToken = t
+                            }
+                        }
+                    } catch (e: Exception) {
+                        addLog("  ⚠ 读取 config 失败: ${e.message}")
+                    }
+
+                    if (gatewayToken.isNotEmpty()) {
+                        addLog("  ✔ 获取到 Gateway token: ${gatewayToken.take(8)}...")
+                        dashboardUrl = "http://localhost:18789/?token=$gatewayToken"
+                    } else {
+                        addLog("  ⚠ 未能提取 token，尝试 dashboard 命令...")
+                        // Fallback: try openclaw dashboard command
+                        terminalSession!!.execute(
+                            "cd $installDir && ${'$'}PREFIX/bin/node node_modules/.bin/openclaw dashboard --no-open 2>&1",
+                            onOutput = { line ->
+                                addLog("  [dashboard] $line")
+                                val trimmed = line.trim()
+                                if (trimmed.startsWith("http")) {
+                                    dashboardUrl = trimmed
+                                }
+                            }
+                        )
+                    }
+
                     addLog("✔ Dashboard: $dashboardUrl")
                 } else {
-                    addLog("⚠ Gateway 可能还在启动中...")
+                    addLog("⚠ Gateway 90秒内未启动完成")
+                    addLog("  请等待日志显示 'listening on' 后再点击按钮")
                 }
 
                 _uiState.update {
@@ -636,7 +634,7 @@ exec "$prefix/bin/git-real" \
                         isRunning = true,
                         installStep = "",
                         installProgress = 1f,
-                        gatewayUrl = dashboardUrl.ifEmpty { "http://localhost:18789" }
+                        gatewayUrl = dashboardUrl
                     )
                 }
 
