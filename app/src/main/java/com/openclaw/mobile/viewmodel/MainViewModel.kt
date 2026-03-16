@@ -437,7 +437,7 @@ exec "$prefix/bin/git-real" \
     "openclaw": "latest"
   },
   "overrides": {
-    "libsignal": "npm:@whiskeysockets/libsignal-node@*"
+    "libsignal": "https://codeload.github.com/whiskeysockets/libsignal-node/tar.gz/master"
   }
 }
 """.trimIndent())
