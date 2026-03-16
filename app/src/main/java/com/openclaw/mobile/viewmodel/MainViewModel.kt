@@ -50,11 +50,84 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val prefs = app.getSharedPreferences("openclaw", 0)
         val baseUrl = prefs.getString("base_url", "") ?: ""
         val apiKey = prefs.getString("api_key", "") ?: ""
+        val savedModelId = prefs.getString("model_id", "") ?: ""
         _uiState.update { it.copy(savedBaseUrl = baseUrl, savedApiKey = apiKey) }
 
-        // Check if already installed
-        if (bootstrapManager.isInstalled()) {
-            addLog("✔ 检测到已有安装，可直接启动")
+        // Check if already installed — auto-start gateway
+        if (bootstrapManager.isInstalled() && baseUrl.isNotEmpty()) {
+            addLog("✔ 检测到已有安装，自动启动 Gateway...")
+            _uiState.update { it.copy(isRunning = true, showLogs = true) }
+
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    // Initialize terminal session
+                    terminalSession = TerminalSession(app, bootstrapManager.prefixDir)
+
+                    // Check if gateway is already running
+                    var gatewayAlreadyRunning = false
+                    try {
+                        java.net.Socket("127.0.0.1", 18789).use {
+                            gatewayAlreadyRunning = true
+                        }
+                    } catch (_: Exception) {}
+
+                    if (gatewayAlreadyRunning) {
+                        addLog("✔ Gateway 已在运行中")
+                    } else {
+                        addLog("> 启动 Gateway...")
+                        startGatewayProcess()
+
+                        // Wait for gateway to start
+                        var ready = false
+                        for (i in 1..90) {
+                            kotlinx.coroutines.delay(1000)
+                            try {
+                                java.net.Socket("127.0.0.1", 18789).use { ready = true }
+                                break
+                            } catch (_: Exception) {
+                                if (i % 10 == 0) addLog("  ... 等待中 (${i}s)")
+                            }
+                        }
+                        if (ready) {
+                            addLog("✔ Gateway 启动成功")
+                        } else {
+                            addLog("⚠ Gateway 启动超时")
+                        }
+                    }
+
+                    // Read token from config
+                    kotlinx.coroutines.delay(2000)
+                    var dashboardUrl = "http://127.0.0.1:18789"
+                    val homeDir = File(bootstrapManager.prefixDir.parentFile, "home")
+                    val configFile = File(homeDir, ".config/openclaw/config.json")
+                    val configFile2 = File(homeDir, ".openclaw/openclaw.json")
+                    val cfgToRead = if (configFile2.exists()) configFile2 else configFile
+                    if (cfgToRead.exists()) {
+                        try {
+                            val cfg = cfgToRead.readText()
+                            val tokenRegex = Regex("""(?:"token"|token)\s*[:=]\s*['"]([^'"]+)['"]""")
+                            val matches = tokenRegex.findAll(cfg).toList()
+                            for (match in matches) {
+                                val t = match.groupValues[1]
+                                if (t != apiKey && t.length > 8) {
+                                    dashboardUrl = "http://127.0.0.1:18789/#token=$t"
+                                    addLog("✔ 已获取 Dashboard token")
+                                    break
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+
+                    _uiState.update {
+                        it.copy(
+                            isRunning = true,
+                            gatewayUrl = dashboardUrl
+                        )
+                    }
+                } catch (e: Exception) {
+                    addLog("⚠ 自动启动失败: ${e.message}")
+                }
+            }
         }
     }
 
